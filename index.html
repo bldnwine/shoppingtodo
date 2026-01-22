@@ -121,13 +121,12 @@
   </div>
 
   <script>
-    // --- CONFIGURE YOUR PROJECT HERE ---
+    // 1. Initialize Supabase with a unique variable name (sb) to avoid conflicts
     const SB_URL = 'https://hpdokobntovytsgylpra.supabase.co';
     const SB_KEY = 'sb_secret_hUx7rMcGzzW2e7brJxglTw_i5DHOyq_';
     
-    // Fixed: lowercase 's' for supabase.createClient
-    const supabase = supabase.createClient(SB_URL, SB_KEY);
-    // ------------------------------------
+    // Using 'sb' instead of 'supabase' fixes the "Identifier already declared" error
+    const sb = supabase.createClient(SB_URL, SB_KEY);
 
     const activeList = document.getElementById('activeList');
     const completedList = document.getElementById('completedList');
@@ -135,11 +134,12 @@
     const input = document.getElementById('itemInput');
 
     async function fetchItems() {
-      const { data } = await supabase
+      const { data, error } = await sb
         .from('shopping_items')
         .select('*')
         .order('created_at', { ascending: true });
 
+      if (error) console.error("Fetch error:", error.message);
       renderItems(data || []);
     }
 
@@ -147,6 +147,7 @@
       const active = items.filter(i => !i.is_completed);
       const completed = items.filter(i => i.is_completed);
 
+      // Added quotes around ${item.id} to handle UUID strings correctly
       activeList.innerHTML = active.length === 0 
         ? '<div class="empty-state">Nothing on the list yet...</div>'
         : active.map(item => `
@@ -176,40 +177,34 @@
       const text = input.value.trim();
       if (!text) return;
 
-      await supabase.from('shopping_items').insert([{ item: text }]);
+      const { error } = await sb.from('shopping_items').insert([{ item: text }]);
+      if (error) console.error("Add error:", error.message);
       input.value = '';
       input.focus();
     }
 
     async function toggleItem(id, wasActive) {
-      await supabase
+      const { error } = await sb
         .from('shopping_items')
         .update({ is_completed: wasActive })
         .eq('id', id);
+      if (error) console.error("Toggle error:", error.message);
     }
 
     async function deleteItem(id) {
       if (!confirm("Delete this item?")) return;
-      await supabase.from('shopping_items').delete().eq('id', id);
+      const { error } = await sb.from('shopping_items').delete().eq('id', id);
+      if (error) console.error("Delete error:", error.message);
     }
 
     async function clearCompleted() {
       if (!confirm("Remove all completed items?")) return;
-      
-      const { data: completed } = await supabase
-        .from('shopping_items')
-        .select('id')
-        .eq('is_completed', true);
-
-      if (!completed?.length) return;
-
-      // Delete all completed items
-      await supabase.from('shopping_items').delete().eq('is_completed', true);
+      const { error } = await sb.from('shopping_items').delete().eq('is_completed', true);
+      if (error) console.error("Clear error:", error.message);
     }
 
     // Real-time listener
-    supabase
-      .channel('shopping-changes')
+    sb.channel('shopping-changes')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'shopping_items' }, 
         () => fetchItems()
