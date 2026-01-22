@@ -121,12 +121,11 @@
   </div>
 
   <script>
-    // 1. Initialize Supabase with a unique variable name (sb) to avoid conflicts
-    const SB_URL = 'https://hpdokobntovytsgylpra.supabase.co';
-    const SB_KEY = 'sb_secret_hUx7rMcGzzW2e7brJxglTw_i5DHOyq_';
-    
-    // Using 'sb' instead of 'supabase' fixes the "Identifier already declared" error
-    const sb = supabase.createClient(SB_URL, SB_KEY);
+    // 1. Fixed the conflict by renaming the variable to 'client'
+    const client = supabase.createClient(
+      'https://hpdokobntovytsgylpra.supabase.co',
+      'sb_secret_hUx7rMcGzzW2e7brJxglTw_i5DHOyq_'
+    );
 
     const activeList = document.getElementById('activeList');
     const completedList = document.getElementById('completedList');
@@ -134,12 +133,12 @@
     const input = document.getElementById('itemInput');
 
     async function fetchItems() {
-      const { data, error } = await sb
+      const { data, error } = await client
         .from('shopping_items')
         .select('*')
         .order('created_at', { ascending: true });
 
-      if (error) console.error("Fetch error:", error.message);
+      if (error) console.error("Fetch Error:", error.message);
       renderItems(data || []);
     }
 
@@ -147,7 +146,7 @@
       const active = items.filter(i => !i.is_completed);
       const completed = items.filter(i => i.is_completed);
 
-      // Added quotes around ${item.id} to handle UUID strings correctly
+      // 2. Fixed UUID support by adding single quotes around '${item.id}'
       activeList.innerHTML = active.length === 0 
         ? '<div class="empty-state">Nothing on the list yet...</div>'
         : active.map(item => `
@@ -177,44 +176,43 @@
       const text = input.value.trim();
       if (!text) return;
 
-      const { error } = await sb.from('shopping_items').insert([{ item: text }]);
-      if (error) console.error("Add error:", error.message);
+      const { error } = await client.from('shopping_items').insert([{ item: text }]);
+      if (error) console.error("Add Error:", error.message);
+      
       input.value = '';
       input.focus();
     }
 
     async function toggleItem(id, wasActive) {
-      const { error } = await sb
+      const { error } = await client
         .from('shopping_items')
         .update({ is_completed: wasActive })
         .eq('id', id);
-      if (error) console.error("Toggle error:", error.message);
+      if (error) console.error("Update Error:", error.message);
     }
 
     async function deleteItem(id) {
       if (!confirm("Delete this item?")) return;
-      const { error } = await sb.from('shopping_items').delete().eq('id', id);
-      if (error) console.error("Delete error:", error.message);
+      const { error } = await client.from('shopping_items').delete().eq('id', id);
+      if (error) console.error("Delete Error:", error.message);
     }
 
     async function clearCompleted() {
       if (!confirm("Remove all completed items?")) return;
-      const { error } = await sb.from('shopping_items').delete().eq('is_completed', true);
-      if (error) console.error("Clear error:", error.message);
+      const { error } = await client.from('shopping_items').delete().eq('is_completed', true);
+      if (error) console.error("Clear Error:", error.message);
     }
 
     // Real-time listener
-    sb.channel('shopping-changes')
+    client.channel('shopping-changes')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'shopping_items' }, 
         () => fetchItems()
       )
       .subscribe();
 
-    // Initial load
     fetchItems();
 
-    // Enter key support
     input.addEventListener('keypress', e => {
       if (e.key === 'Enter') addItem();
     });
