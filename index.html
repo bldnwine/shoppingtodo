@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Team Shopping List</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/uuid@latest/dist/umd/uuidv4.min.js"></script>
   <style>
     :root {
       --bg: #0f0f11;
@@ -30,11 +31,20 @@
       margin: 0 auto;
     }
 
-    h1 { font-size: 1.8rem; margin-bottom: 1.2rem; color: white; text-align: center; }
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 1.2rem;
+      color: white;
+      text-align: center;
+    }
 
-    .input-area { display: flex; gap: 8px; margin-bottom: 24px; }
+    .input-area {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
 
-    input[type="text"] {
+    input[type="text"], input[type="password"] {
       flex: 1;
       padding: 12px 16px;
       border: 1px solid var(--border);
@@ -43,6 +53,8 @@
       color: var(--text);
       font-size: 1rem;
     }
+
+    input[type="file"] { display: none; }
 
     button {
       padding: 0 20px;
@@ -53,11 +65,27 @@
       transition: all 0.15s;
     }
 
-    .btn-add { background: var(--accent); color: white; }
+    .btn-add {
+      background: var(--accent);
+      color: white;
+    }
     .btn-add:hover { background: var(--accent-hover); }
 
+    .btn-image {
+      background: var(--surface);
+      color: var(--accent);
+      font-size: 1.4rem;
+      padding: 0 14px;
+      line-height: 1;
+    }
+    .btn-image:hover { background: var(--border); }
+
     .section { margin-bottom: 2.5rem; }
-    .section-title { font-size: 1.1rem; color: var(--text-secondary); margin-bottom: 0.8rem; }
+    .section-title {
+      font-size: 1.1rem;
+      color: var(--text-secondary);
+      margin-bottom: 0.8rem;
+    }
 
     .todo-item {
       display: flex;
@@ -70,17 +98,42 @@
       border: 1px solid var(--border);
     }
 
-    .task-text { flex: 1; cursor: pointer; user-select: none; }
-    .completed .task-text { text-decoration: line-through; color: var(--text-secondary); }
+    .task-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+    }
+
+    .mini-img {
+      width: 44px;
+      height: 44px;
+      object-fit: cover;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 1px solid var(--border);
+    }
+
+    .task-text {
+      cursor: pointer;
+      user-select: none;
+      flex: 1;
+    }
+
+    .completed .task-text {
+      text-decoration: line-through;
+      color: var(--text-secondary);
+    }
 
     .delete-btn {
       background: transparent;
       color: #888;
-      font-size: 1.1rem;
-      width: 32px;
-      height: 32px;
+      font-size: 1.3rem;
+      width: 36px;
+      height: 36px;
       display: grid;
       place-items: center;
+      cursor: pointer;
     }
 
     .delete-btn:hover { color: var(--danger); }
@@ -88,49 +141,159 @@
     .clear-completed {
       margin-top: 1rem;
       padding: 10px 16px;
-      background: rgba(248, 113, 113, 0.15);
+      background: rgba(248, 113, 113, 0.12);
       color: var(--danger);
       border: 1px solid rgba(248, 113, 113, 0.3);
       width: 100%;
       border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
     }
 
-    .empty-state { text-align: center; color: var(--text-secondary); padding: 1rem; font-style: italic; }
+    .empty-state {
+      text-align: center;
+      color: var(--text-secondary);
+      padding: 1.5rem;
+      font-style: italic;
+    }
+
+    /* Image Modal */
+    #image-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: rgba(0,0,0,0.9);
+      justify-content: center;
+      align-items: center;
+    }
+
+    #modal-img {
+      max-width: 94%;
+      max-height: 94%;
+      border-radius: 8px;
+      object-fit: contain;
+    }
+
+    /* Login Form */
+    #login-form {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-width: 320px;
+      margin: 0 auto;
+    }
+
+    #login-error {
+      color: var(--danger);
+      text-align: center;
+      font-size: 0.9rem;
+    }
+
+    #main-content { display: none; }
   </style>
 </head>
 <body>
 
   <h1>Shopping List</h1>
 
-  <div class="input-area">
-    <input type="text" id="itemInput" placeholder="What do we need?" autocomplete="off" autofocus/>
-    <button class="btn-add" onclick="addItem()">Add</button>
+  <div id="login-form">
+    <input type="password" id="passwordInput" placeholder="Enter password to unlock" autofocus />
+    <button class="btn-add" style="width: 100%;" onclick="login()">Unlock</button>
+    <div id="login-error"></div>
   </div>
 
-  <div class="section">
-    <div class="section-title">To buy</div>
-    <div id="activeList"></div>
+  <div id="main-content">
+    <div class="input-area">
+      <button class="btn-image" title="Add photo" onclick="document.getElementById('imageInput').click()">+</button>
+      <input type="file" id="imageInput" accept="image/*" />
+      <input type="text" id="itemInput" placeholder="What do we need?" autocomplete="off" autofocus />
+      <button class="btn-add" onclick="addItem()">Add</button>
+    </div>
+
+    <div class="section">
+      <div class="section-title">To buy</div>
+      <div id="activeList"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Already got</div>
+      <div id="completedList"></div>
+      <button class="clear-completed" id="clearCompleted" onclick="clearCompleted()" style="display:none">
+        Clear completed items
+      </button>
+    </div>
   </div>
 
-  <div class="section">
-    <div class="section-title">Already got</div>
-    <div id="completedList"></div>
-    <button class="clear-completed" id="clearCompleted" onclick="clearCompleted()" style="display:none">
-      Clear completed items
-    </button>
+  <!-- Full size image modal -->
+  <div id="image-modal" onclick="closeModal()">
+    <img id="modal-img" alt="Enlarged item image" />
   </div>
 
   <script>
-    // 1. Fixed the conflict by renaming the variable to 'client'
-    const client = supabase.createClient(
-      'https://hpdokobntovytsgylpra.supabase.co',
-      'sb_publishable_k80QkmztNinOHWyj6n_-tg_l8tdeTRp'
-    );
+    const SUPABASE_URL = 'https://hpdokobntovytsgylpra.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_k80QkmztNinOHWyj6n_-tg_l8tdeTRp';
+    const SHARED_EMAIL = 'shared@shoppinglist.com'; // Change to your shared email
+
+    const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: true,
+        storageKey: 'ShoppingListSession',
+      }
+    });
 
     const activeList = document.getElementById('activeList');
     const completedList = document.getElementById('completedList');
     const clearBtn = document.getElementById('clearCompleted');
-    const input = document.getElementById('itemInput');
+    const itemInput = document.getElementById('itemInput');
+    const imageInput = document.getElementById('imageInput');
+    const modal = document.getElementById('image-modal');
+    const modalImg = document.getElementById('modal-img');
+    const passwordInput = document.getElementById('passwordInput');
+    const loginError = document.getElementById('login-error');
+    const loginForm = document.getElementById('login-form');
+    const mainContent = document.getElementById('main-content');
+
+    let selectedImageFile = null;
+    let subscription = null;
+
+    // File selection
+    imageInput.addEventListener('change', (e) => {
+      selectedImageFile = e.target.files[0] || null;
+    });
+
+    async function checkSession() {
+      const { data: { session } } = await client.auth.getSession();
+      if (session) {
+        loginForm.style.display = 'none';
+        mainContent.style.display = 'block';
+        await fetchItems();
+        setupRealtime();
+      } else {
+        loginForm.style.display = 'flex';
+        mainContent.style.display = 'none';
+      }
+    }
+
+    async function login() {
+      const password = passwordInput.value.trim();
+      if (!password) return;
+
+      const { data, error } = await client.auth.signInWithPassword({
+        email: SHARED_EMAIL,
+        password: password,
+      });
+
+      if (error) {
+        loginError.textContent = 'Invalid password. Try again.';
+        console.error('Login error:', error.message);
+        return;
+      }
+
+      passwordInput.value = '';
+      loginError.textContent = '';
+      await checkSession();
+    }
 
     async function fetchItems() {
       const { data, error } = await client
@@ -138,7 +301,10 @@
         .select('*')
         .order('created_at', { ascending: true });
 
-      if (error) console.error("Fetch Error:", error.message);
+      if (error) {
+        console.error("Fetch error:", error.message);
+        return;
+      }
       renderItems(data || []);
     }
 
@@ -146,14 +312,14 @@
       const active = items.filter(i => !i.is_completed);
       const completed = items.filter(i => i.is_completed);
 
-      // 2. Fixed UUID support by adding single quotes around '${item.id}'
-      activeList.innerHTML = active.length === 0 
+      activeList.innerHTML = active.length === 0
         ? '<div class="empty-state">Nothing on the list yet...</div>'
         : active.map(item => `
           <div class="todo-item">
-            <span class="task-text" onclick="toggleItem('${item.id}', true)">
-              ${item.item}
-            </span>
+            <div class="task-container">
+              ${item.image_url ? `<img class="mini-img" src="${item.image_url}" alt="${item.item}" onclick="showImage('${item.image_url}')">` : ''}
+              <span class="task-text" onclick="toggleItem('${item.id}', true)">${item.item}</span>
+            </div>
             <button class="delete-btn" onclick="deleteItem('${item.id}')">×</button>
           </div>
         `).join('');
@@ -162,9 +328,10 @@
         ? '<div class="empty-state">Nothing bought yet</div>'
         : completed.map(item => `
           <div class="todo-item completed">
-            <span class="task-text" onclick="toggleItem('${item.id}', false)">
-              ${item.item}
-            </span>
+            <div class="task-container">
+              ${item.image_url ? `<img class="mini-img" src="${item.image_url}" alt="${item.item}" onclick="showImage('${item.image_url}')">` : ''}
+              <span class="task-text" onclick="toggleItem('${item.id}', false)">${item.item}</span>
+            </div>
             <button class="delete-btn" onclick="deleteItem('${item.id}')">×</button>
           </div>
         `).join('');
@@ -173,47 +340,145 @@
     }
 
     async function addItem() {
-      const text = input.value.trim();
+      const text = itemInput.value.trim();
       if (!text) return;
 
-      const { error } = await client.from('shopping_items').insert([{ item: text }]);
-      if (error) console.error("Add Error:", error.message);
-      
-      input.value = '';
-      input.focus();
-    }
+      let imageUrl = null;
 
-    async function toggleItem(id, wasActive) {
+      if (selectedImageFile) {
+        const ext = selectedImageFile.name.split('.').pop() || 'jpg';
+        const fileName = `${uuidv4()}.${ext}`;
+
+        const { error: uploadError } = await client.storage
+          .from('item-images')
+          .upload(fileName, selectedImageFile);
+
+        if (uploadError) {
+          console.error("Image upload failed:", uploadError.message);
+          alert("Failed to upload image. Item not added.");
+          return;
+        }
+
+        const { data: urlData } = client.storage
+          .from('item-images')
+          .getPublicUrl(fileName);
+
+        imageUrl = urlData.publicUrl;
+      }
+
       const { error } = await client
         .from('shopping_items')
-        .update({ is_completed: wasActive })
+        .insert([{ item: text, image_url: imageUrl }]);
+
+      if (error) {
+        console.error("Insert error:", error.message);
+        return;
+      }
+
+      // Reset form
+      itemInput.value = '';
+      imageInput.value = '';
+      selectedImageFile = null;
+      itemInput.focus();
+    }
+
+    async function toggleItem(id, shouldComplete) {
+      const { error } = await client
+        .from('shopping_items')
+        .update({ is_completed: shouldComplete })
         .eq('id', id);
-      if (error) console.error("Update Error:", error.message);
+
+      if (error) console.error("Toggle error:", error.message);
     }
 
     async function deleteItem(id) {
       if (!confirm("Delete this item?")) return;
-      const { error } = await client.from('shopping_items').delete().eq('id', id);
-      if (error) console.error("Delete Error:", error.message);
+
+      // Get current item to find image if any
+      const { data: item, error: fetchErr } = await client
+        .from('shopping_items')
+        .select('image_url')
+        .eq('id', id)
+        .single();
+
+      if (fetchErr) {
+        console.error("Couldn't fetch item:", fetchErr.message);
+      }
+
+      // Delete row
+      const { error: deleteErr } = await client
+        .from('shopping_items')
+        .delete()
+        .eq('id', id);
+
+      if (deleteErr) {
+        console.error("Delete failed:", deleteErr.message);
+        return;
+      }
+
+      // Delete image if it exists
+      if (item?.image_url) {
+        try {
+          const url = new URL(item.image_url);
+          const pathParts = url.pathname.split('/public/item-images/');
+          const filePath = pathParts[1] || '';
+
+          if (filePath) {
+            const { error: storageErr } = await client.storage
+              .from('item-images')
+              .remove([filePath]);
+
+            if (storageErr) {
+              console.warn("Image delete failed (item already removed):", storageErr.message);
+            }
+          }
+        } catch (e) {
+          console.warn("Could not parse image path:", e);
+        }
+      }
     }
 
     async function clearCompleted() {
       if (!confirm("Remove all completed items?")) return;
-      const { error } = await client.from('shopping_items').delete().eq('is_completed', true);
-      if (error) console.error("Clear Error:", error.message);
+
+      const { error } = await client
+        .from('shopping_items')
+        .delete()
+        .eq('is_completed', true);
+
+      if (error) console.error("Clear completed error:", error.message);
     }
 
-    // Real-time listener
-    client.channel('shopping-changes')
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'shopping_items' }, 
-        () => fetchItems()
-      )
-      .subscribe();
+    function showImage(url) {
+      modalImg.src = url;
+      modal.style.display = 'flex';
+    }
 
-    fetchItems();
+    function closeModal() {
+      modal.style.display = 'none';
+      modalImg.src = '';
+    }
 
-    input.addEventListener('keypress', e => {
+    function setupRealtime() {
+      if (subscription) return;
+
+      subscription = client.channel('shopping-changes')
+        .on('postgres_changes',
+          { event: '*', schema: 'public', table: 'shopping_items' },
+          () => fetchItems()
+        )
+        .subscribe();
+    }
+
+    // Initial check
+    checkSession();
+
+    // Enter key support for login and add
+    passwordInput.addEventListener('keypress', e => {
+      if (e.key === 'Enter') login();
+    });
+
+    itemInput.addEventListener('keypress', e => {
       if (e.key === 'Enter') addItem();
     });
   </script>
