@@ -448,24 +448,24 @@
       activeList.innerHTML = active.length === 0
         ? '<div class="empty-state">Nothing on the list yet...</div>'
         : active.map(item => `
-          <div class="todo-item">
+          <div class="todo-item" data-id="${sanitizeHTML(item.id)}" data-image-url="${item.image_url ? sanitizeHTML(item.image_url) : ''}">
             <div class="task-container">
               ${item.image_url ? `<img class="mini-img" src="${sanitizeHTML(item.image_url)}" alt="${sanitizeHTML(item.item)}" onclick="showImage('${sanitizeHTML(item.image_url)}')">` : ''}
               <span class="task-text" onclick="toggleItem('${sanitizeHTML(item.id)}', true)">${sanitizeHTML(item.item)}</span>
             </div>
-            <button class="delete-btn" onclick="deleteItem('${sanitizeHTML(item.id)}')">×</button>
+            <button class="delete-btn" onclick="deleteItem('${sanitizeHTML(item.id)}', '${item.image_url ? sanitizeHTML(item.image_url) : ''}')" aria-label="Delete ${sanitizeHTML(item.item)}">×</button>
           </div>
         `).join('');
 
       completedList.innerHTML = completed.length === 0
         ? '<div class="empty-state">Nothing bought yet</div>'
         : completed.map(item => `
-          <div class="todo-item completed">
+          <div class="todo-item completed" data-id="${sanitizeHTML(item.id)}" data-image-url="${item.image_url ? sanitizeHTML(item.image_url) : ''}">
             <div class="task-container">
               ${item.image_url ? `<img class="mini-img" src="${sanitizeHTML(item.image_url)}" alt="${sanitizeHTML(item.item)}" onclick="showImage('${sanitizeHTML(item.image_url)}')">` : ''}
               <span class="task-text" onclick="toggleItem('${sanitizeHTML(item.id)}', false)">${sanitizeHTML(item.item)}</span>
             </div>
-            <button class="delete-btn" onclick="deleteItem('${sanitizeHTML(item.id)}')">×</button>
+            <button class="delete-btn" onclick="deleteItem('${sanitizeHTML(item.id)}', '${item.image_url ? sanitizeHTML(item.image_url) : ''}')" aria-label="Delete ${sanitizeHTML(item.item)}">×</button>
           </div>
         `).join('');
 
@@ -550,35 +550,16 @@
       if (error) console.error("Toggle error:", error.message);
     }
 
-    async function deleteItem(id) {
+    async function deleteItem(id, imageUrl) {
       if (!confirm("Delete this item?")) return;
 
-      // Get current item to find image if any
-      const { data: item, error: fetchErr } = await client
-        .from('shopping_items')
-        .select('image_url')
-        .eq('id', id)
-        .single();
+      let imageDeleted = false;
+      let rowDeleted = false;
 
-      if (fetchErr) {
-        console.error("Couldn't fetch item:", fetchErr.message);
-      }
-
-      // Delete row
-      const { error: deleteErr } = await client
-        .from('shopping_items')
-        .delete()
-        .eq('id', id);
-
-      if (deleteErr) {
-        console.error("Delete failed:", deleteErr.message);
-        return;
-      }
-
-      // Delete image if it exists
-      if (item?.image_url) {
+      // First, try to delete the image if it exists (before deleting the row)
+      if (imageUrl) {
         try {
-          const url = new URL(item.image_url);
+          const url = new URL(imageUrl);
           const pathParts = url.pathname.split('/public/item-images/');
           const filePath = pathParts[1] || '';
 
@@ -588,24 +569,99 @@
               .remove([filePath]);
 
             if (storageErr) {
-              console.warn("Image delete failed (item already removed):", storageErr.message);
+              console.warn("Image delete failed:", storageErr.message);
+            } else {
+              imageDeleted = true;
+              console.log("Image deleted successfully from storage");
             }
           }
         } catch (e) {
           console.warn("Could not parse image path:", e);
         }
       }
+
+      // Then delete the row from the database
+      const { error: deleteErr } = await client
+        .from('shopping_items')
+        .delete()
+        .eq('id', id);
+
+      if (deleteErr) {
+        console.error("Delete failed:", deleteErr.message);
+        alert("Failed to delete item. Please try again.");
+        return;
+      }
+
+      rowDeleted = true;
+
+      // Verify deletion was successful
+      if (imageUrl && !imageDeleted) {
+        console.warn("Item deleted but image may still exist in storage:", imageUrl);
+      }
     }
 
     async function clearCompleted() {
       if (!confirm("Remove all completed items?")) return;
 
-      const { error } = await client
+      // First, fetch all completed items with their image URLs
+      const { data: completedItems, error: fetchError } = await client
+        .from('shopping_items')
+        .select('id, image_url')
+        .eq('is_completed', true);
+
+      if (fetchError) {
+        console.error("Failed to fetch completed items:", fetchError.message);
+        alert("Failed to fetch completed items. Please try again.");
+        return;
+      }
+
+      if (!completedItems || completedItems.length === 0) {
+        return;
+      }
+
+      // Delete all associated images first
+      const imageUrls = completedItems
+        .filter(item => item.image_url)
+        .map(item => item.image_url);
+
+      if (imageUrls.length > 0) {
+        const deletePromises = imageUrls.map(async (imageUrl) => {
+          try {
+            const url = new URL(imageUrl);
+            const pathParts = url.pathname.split('/public/item-images/');
+            const filePath = pathParts[1] || '';
+
+            if (filePath) {
+              const { error: storageErr } = await client.storage
+                .from('item-images')
+                .remove([filePath]);
+
+              if (storageErr) {
+                console.warn("Failed to delete image:", imageUrl, storageErr.message);
+                return { success: false, url: imageUrl };
+              }
+              return { success: true, url: imageUrl };
+            }
+            return { success: false, url: imageUrl };
+          } catch (e) {
+            console.warn("Could not parse image path:", imageUrl, e);
+            return { success: false, url: imageUrl };
+          }
+        });
+
+        await Promise.all(deletePromises);
+      }
+
+      // Then delete all rows from the database
+      const { error: deleteError } = await client
         .from('shopping_items')
         .delete()
         .eq('is_completed', true);
 
-      if (error) console.error("Clear completed error:", error.message);
+      if (deleteError) {
+        console.error("Clear completed error:", deleteError.message);
+        alert("Failed to clear completed items. Please try again.");
+      }
     }
 
     function showImage(url) {
