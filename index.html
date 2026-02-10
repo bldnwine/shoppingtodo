@@ -17,6 +17,7 @@
       --danger: #f87171;
       --danger-hover: #fca5a5;
       --border: #2a2a35;
+      --disabled: #4b5563;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -42,6 +43,7 @@
       display: flex;
       gap: 8px;
       margin-bottom: 24px;
+      align-items: center; /* Better vertical alignment */
     }
 
     input[type="text"], input[type="password"] {
@@ -63,13 +65,23 @@
       font-weight: 600;
       cursor: pointer;
       transition: all 0.15s;
+      min-width: 60px; /* Prevent shrinking on mobile */
+      height: 44px; /* Match input height for alignment */
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .btn-add {
       background: var(--accent);
       color: white;
+      position: relative; /* For spinner */
     }
     .btn-add:hover { background: var(--accent-hover); }
+    .btn-add.disabled {
+      background: var(--disabled);
+      cursor: not-allowed;
+    }
 
     .btn-image {
       background: var(--surface);
@@ -77,6 +89,8 @@
       font-size: 1.4rem;
       padding: 0 14px;
       line-height: 1;
+      min-width: 44px; /* Square for better touch */
+      height: 44px;
     }
     .btn-image:hover { background: var(--border); }
 
@@ -103,6 +117,7 @@
       align-items: center;
       gap: 10px;
       flex: 1;
+      overflow: hidden; /* Prevent overflow on mobile */
     }
 
     .mini-img {
@@ -112,12 +127,16 @@
       border-radius: 6px;
       cursor: pointer;
       border: 1px solid var(--border);
+      flex-shrink: 0;
     }
 
     .task-text {
       cursor: pointer;
       user-select: none;
       flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap; /* Prevent wrapping on small screens */
     }
 
     .completed .task-text {
@@ -134,6 +153,7 @@
       display: grid;
       place-items: center;
       cursor: pointer;
+      flex-shrink: 0;
     }
 
     .delete-btn:hover { color: var(--danger); }
@@ -191,6 +211,34 @@
     }
 
     #main-content { display: none; }
+
+    /* Loading spinner for upload */
+    .spinner {
+      display: none;
+      border: 2px solid var(--accent-hover);
+      border-top: 2px solid transparent;
+      border-radius: 50%;
+      width: 16px;
+      height: 16px;
+      animation: spin 1s linear infinite;
+      margin-left: 8px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .btn-add.loading .spinner { display: inline-block; }
+    .btn-add.loading { pointer-events: none; }
+
+    /* Media query for very small mobiles */
+    @media (max-width: 360px) {
+      body { padding: 16px 8px; }
+      .input-area { gap: 4px; }
+      button { padding: 0 12px; }
+      .btn-image { padding: 0 10px; min-width: 40px; height: 40px; }
+    }
   </style>
 </head>
 <body>
@@ -208,7 +256,10 @@
       <button class="btn-image" title="Add photo" onclick="document.getElementById('imageInput').click()">+</button>
       <input type="file" id="imageInput" accept="image/*" />
       <input type="text" id="itemInput" placeholder="What do we need?" autocomplete="off" autofocus />
-      <button class="btn-add" onclick="addItem()">Add</button>
+      <button id="addButton" class="btn-add" onclick="addItem()">
+        Add
+        <span class="spinner"></span>
+      </button>
     </div>
 
     <div class="section">
@@ -247,6 +298,7 @@
     const clearBtn = document.getElementById('clearCompleted');
     const itemInput = document.getElementById('itemInput');
     const imageInput = document.getElementById('imageInput');
+    const addBtn = document.getElementById('addButton');
     const modal = document.getElementById('image-modal');
     const modalImg = document.getElementById('modal-img');
     const passwordInput = document.getElementById('passwordInput');
@@ -256,6 +308,7 @@
 
     let selectedImageFile = null;
     let subscription = null;
+    let isUploading = false;
 
     // File selection
     imageInput.addEventListener('change', (e) => {
@@ -340,8 +393,14 @@
     }
 
     async function addItem() {
+      if (isUploading) return;
+
       const text = itemInput.value.trim();
       if (!text) return;
+
+      isUploading = true;
+      addBtn.classList.add('loading', 'disabled');
+      addBtn.querySelector('span:not(.spinner)').textContent = 'Adding...'; // Temporary text change
 
       let imageUrl = null;
 
@@ -356,6 +415,7 @@
         if (uploadError) {
           console.error("Image upload failed:", uploadError.message);
           alert("Failed to upload image. Item not added.");
+          resetAddButton();
           return;
         }
 
@@ -372,14 +432,22 @@
 
       if (error) {
         console.error("Insert error:", error.message);
-        return;
+        alert("Failed to add item. Please try again.");
       }
+
+      resetAddButton();
 
       // Reset form
       itemInput.value = '';
       imageInput.value = '';
       selectedImageFile = null;
       itemInput.focus();
+    }
+
+    function resetAddButton() {
+      isUploading = false;
+      addBtn.classList.remove('loading', 'disabled');
+      addBtn.querySelector('span:not(.spinner)').textContent = 'Add';
     }
 
     async function toggleItem(id, shouldComplete) {
