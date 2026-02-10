@@ -2,10 +2,9 @@
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5"/>
   <title>Team Shopping List</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/uuid@latest/dist/umd/uuidv4.min.js"></script>
   <style>
     :root {
       --bg: #0f0f11;
@@ -26,9 +25,14 @@
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
-      padding: 24px 16px;
+      padding: 0;
+      margin: 0;
+    }
+
+    .container {
       max-width: 480px;
       margin: 0 auto;
+      padding: 24px 16px;
     }
 
     h1 {
@@ -138,6 +142,73 @@
 
     .delete-btn:hover { color: var(--danger); }
 
+    .loading-indicator {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      padding: 12px 16px;
+      background: var(--surface);
+      border-radius: 8px;
+      margin-bottom: 8px;
+      border: 1px solid var(--border);
+      opacity: 0.8;
+    }
+
+    .loading-indicator.hidden {
+      display: none;
+    }
+
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .image-preview {
+      display: none;
+      position: absolute;
+      bottom: 100%;
+      left: 0;
+      margin-bottom: 8px;
+      padding: 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    .image-preview.visible {
+      display: block;
+    }
+
+    .image-preview img {
+      width: 80px;
+      height: 80px;
+      object-fit: cover;
+      border-radius: 6px;
+    }
+
+    .input-area {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      position: relative;
+    }
+
     .clear-completed {
       margin-top: 1rem;
       padding: 10px 16px;
@@ -180,8 +251,7 @@
       display: flex;
       flex-direction: column;
       gap: 16px;
-      max-width: 320px;
-      margin: 0 auto;
+      width: 100%;
     }
 
     #login-error {
@@ -191,37 +261,78 @@
     }
 
     #main-content { display: none; }
+
+    @media (max-width: 480px) {
+      .container {
+        padding: 16px 12px;
+      }
+
+      h1 {
+        font-size: 1.6rem;
+        margin-bottom: 1rem;
+      }
+
+      .input-area {
+        gap: 6px;
+      }
+
+      button {
+        padding: 0 16px;
+      }
+
+      .btn-image {
+        padding: 0 12px;
+        font-size: 1.2rem;
+      }
+
+      input[type="text"], input[type="password"] {
+        padding: 10px 12px;
+        font-size: 16px;
+      }
+
+      .todo-item {
+        padding: 10px 12px;
+      }
+    }
   </style>
 </head>
 <body>
+  <div class="container">
+    <h1>Shopping List</h1>
 
-  <h1>Shopping List</h1>
-
-  <div id="login-form">
-    <input type="password" id="passwordInput" placeholder="Enter password to unlock" autofocus />
-    <button class="btn-add" style="width: 100%;" onclick="login()">Unlock</button>
-    <div id="login-error"></div>
-  </div>
-
-  <div id="main-content">
-    <div class="input-area">
-      <button class="btn-image" title="Add photo" onclick="document.getElementById('imageInput').click()">+</button>
-      <input type="file" id="imageInput" accept="image/*" />
-      <input type="text" id="itemInput" placeholder="What do we need?" autocomplete="off" autofocus />
-      <button class="btn-add" onclick="addItem()">Add</button>
+    <div id="login-form">
+      <input type="password" id="passwordInput" placeholder="Enter password to unlock" autofocus />
+      <button class="btn-add" style="width: 100%;" onclick="login()">Unlock</button>
+      <div id="login-error"></div>
     </div>
 
-    <div class="section">
-      <div class="section-title">To buy</div>
-      <div id="activeList"></div>
-    </div>
+    <div id="main-content">
+      <div class="input-area">
+        <div class="image-preview" id="imagePreview">
+          <img id="previewImg" alt="Selected" />
+        </div>
+        <button class="btn-image" title="Add photo" onclick="document.getElementById('imageInput').click()">+</button>
+        <input type="file" id="imageInput" accept="image/*" />
+        <input type="text" id="itemInput" placeholder="What do we need?" autocomplete="off" autofocus />
+        <button class="btn-add" id="addButton" onclick="addItem()">Add</button>
+      </div>
 
-    <div class="section">
-      <div class="section-title">Already got</div>
-      <div id="completedList"></div>
-      <button class="clear-completed" id="clearCompleted" onclick="clearCompleted()" style="display:none">
-        Clear completed items
-      </button>
+      <div class="section">
+        <div class="section-title">To buy</div>
+        <div id="loadingIndicator" class="loading-indicator hidden">
+          <div class="spinner"></div>
+          <span id="loadingText">Adding item...</span>
+        </div>
+        <div id="activeList"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Already got</div>
+        <div id="completedList"></div>
+        <button class="clear-completed" id="clearCompleted" onclick="clearCompleted()" style="display:none">
+          Clear completed items
+        </button>
+      </div>
     </div>
   </div>
 
@@ -256,10 +367,32 @@
 
     let selectedImageFile = null;
     let subscription = null;
+    let isAdding = false;
 
-    // File selection
+    // Sanitization function to prevent XSS
+    function sanitizeHTML(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    // File selection with preview
     imageInput.addEventListener('change', (e) => {
       selectedImageFile = e.target.files[0] || null;
+      const preview = document.getElementById('imagePreview');
+      const previewImg = document.getElementById('previewImg');
+      
+      if (selectedImageFile) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          previewImg.src = e.target.result;
+          preview.classList.add('visible');
+        };
+        reader.readAsDataURL(selectedImageFile);
+      } else {
+        preview.classList.remove('visible');
+        previewImg.src = '';
+      }
     });
 
     async function checkSession() {
@@ -317,10 +450,10 @@
         : active.map(item => `
           <div class="todo-item">
             <div class="task-container">
-              ${item.image_url ? `<img class="mini-img" src="${item.image_url}" alt="${item.item}" onclick="showImage('${item.image_url}')">` : ''}
-              <span class="task-text" onclick="toggleItem('${item.id}', true)">${item.item}</span>
+              ${item.image_url ? `<img class="mini-img" src="${sanitizeHTML(item.image_url)}" alt="${sanitizeHTML(item.item)}" onclick="showImage('${sanitizeHTML(item.image_url)}')">` : ''}
+              <span class="task-text" onclick="toggleItem('${sanitizeHTML(item.id)}', true)">${sanitizeHTML(item.item)}</span>
             </div>
-            <button class="delete-btn" onclick="deleteItem('${item.id}')">×</button>
+            <button class="delete-btn" onclick="deleteItem('${sanitizeHTML(item.id)}')">×</button>
           </div>
         `).join('');
 
@@ -329,10 +462,10 @@
         : completed.map(item => `
           <div class="todo-item completed">
             <div class="task-container">
-              ${item.image_url ? `<img class="mini-img" src="${item.image_url}" alt="${item.item}" onclick="showImage('${item.image_url}')">` : ''}
-              <span class="task-text" onclick="toggleItem('${item.id}', false)">${item.item}</span>
+              ${item.image_url ? `<img class="mini-img" src="${sanitizeHTML(item.image_url)}" alt="${sanitizeHTML(item.item)}" onclick="showImage('${sanitizeHTML(item.image_url)}')">` : ''}
+              <span class="task-text" onclick="toggleItem('${sanitizeHTML(item.id)}', false)">${sanitizeHTML(item.item)}</span>
             </div>
-            <button class="delete-btn" onclick="deleteItem('${item.id}')">×</button>
+            <button class="delete-btn" onclick="deleteItem('${sanitizeHTML(item.id)}')">×</button>
           </div>
         `).join('');
 
@@ -340,46 +473,72 @@
     }
 
     async function addItem() {
+      if (isAdding) return;
+      
       const text = itemInput.value.trim();
       if (!text) return;
 
+      // Show loading state
+      isAdding = true;
+      const addButton = document.getElementById('addButton');
+      const loadingIndicator = document.getElementById('loadingIndicator');
+      const loadingText = document.getElementById('loadingText');
+      const preview = document.getElementById('imagePreview');
+      const previewImg = document.getElementById('previewImg');
+      
+      addButton.disabled = true;
+      addButton.textContent = selectedImageFile ? 'Uploading...' : 'Adding...';
+      loadingText.textContent = selectedImageFile ? 'Uploading image...' : 'Adding item...';
+      loadingIndicator.classList.remove('hidden');
+
       let imageUrl = null;
 
-      if (selectedImageFile) {
-        const ext = selectedImageFile.name.split('.').pop() || 'jpg';
-        const fileName = `${uuidv4()}.${ext}`;
+      try {
+        if (selectedImageFile) {
+          const ext = selectedImageFile.name.split('.').pop() || 'jpg';
+          const fileName = `${crypto.randomUUID()}.${ext}`;
 
-        const { error: uploadError } = await client.storage
-          .from('item-images')
-          .upload(fileName, selectedImageFile);
+          const { error: uploadError } = await client.storage
+            .from('item-images')
+            .upload(fileName, selectedImageFile);
 
-        if (uploadError) {
-          console.error("Image upload failed:", uploadError.message);
-          alert("Failed to upload image. Item not added.");
+          if (uploadError) {
+            console.error("Image upload failed:", uploadError.message);
+            alert("Failed to upload image. Item not added.");
+            return;
+          }
+
+          const { data: urlData } = client.storage
+            .from('item-images')
+            .getPublicUrl(fileName);
+
+          imageUrl = urlData.publicUrl;
+        }
+
+        const { error } = await client
+          .from('shopping_items')
+          .insert([{ item: text, image_url: imageUrl }]);
+
+        if (error) {
+          console.error("Insert error:", error.message);
+          alert("Failed to add item. Please try again.");
           return;
         }
 
-        const { data: urlData } = client.storage
-          .from('item-images')
-          .getPublicUrl(fileName);
-
-        imageUrl = urlData.publicUrl;
+        // Reset form
+        itemInput.value = '';
+        imageInput.value = '';
+        selectedImageFile = null;
+        preview.classList.remove('visible');
+        previewImg.src = '';
+        itemInput.focus();
+      } finally {
+        // Hide loading state
+        isAdding = false;
+        addButton.disabled = false;
+        addButton.textContent = 'Add';
+        loadingIndicator.classList.add('hidden');
       }
-
-      const { error } = await client
-        .from('shopping_items')
-        .insert([{ item: text, image_url: imageUrl }]);
-
-      if (error) {
-        console.error("Insert error:", error.message);
-        return;
-      }
-
-      // Reset form
-      itemInput.value = '';
-      imageInput.value = '';
-      selectedImageFile = null;
-      itemInput.focus();
     }
 
     async function toggleItem(id, shouldComplete) {
