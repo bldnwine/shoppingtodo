@@ -100,6 +100,40 @@
       border-radius: 8px;
       margin-bottom: 8px;
       border: 1px solid var(--border);
+      contain: layout;
+      transition: opacity 0.2s ease;
+    }
+
+    .todo-item.optimistic {
+      opacity: 0.6;
+    }
+
+    .mini-img-skeleton {
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(90deg, var(--border) 25%, var(--surface) 50%, var(--border) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 6px;
+      flex-shrink: 0;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    .mini-img {
+      width: 44px;
+      height: 44px;
+      object-fit: cover;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 1px solid var(--border);
+    }
+
+    .mini-img.loading {
+      display: none;
     }
 
     .task-container {
@@ -368,12 +402,31 @@
     let selectedImageFile = null;
     let subscription = null;
     let isAdding = false;
+    let itemsCache = [];
+    let realtimeDebounceTimer = null;
+    const REALTIME_DEBOUNCE_MS = 100;
 
     // Sanitization function to prevent XSS
     function sanitizeHTML(str) {
+      if (str === null || str === undefined) return '';
       const div = document.createElement('div');
       div.textContent = str;
       return div.innerHTML;
+    }
+
+    // Generate temporary ID for optimistic updates
+    function generateTempId() {
+      return 'temp-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    }
+
+    // Debounced fetch function for realtime updates
+    function debouncedFetchItems() {
+      if (realtimeDebounceTimer) {
+        clearTimeout(realtimeDebounceTimer);
+      }
+      realtimeDebounceTimer = setTimeout(() => {
+        fetchItems();
+      }, REALTIME_DEBOUNCE_MS);
     }
 
     // File selection with preview
@@ -438,36 +491,60 @@
         console.error("Fetch error:", error.message);
         return;
       }
-      renderItems(data || []);
+      itemsCache = data || [];
+      
+      // Use requestIdleCallback for large lists to prevent UI freezing
+      if (itemsCache.length > 30 && 'requestIdleCallback' in window) {
+        requestIdleCallback(() => renderItems(itemsCache), { timeout: 100 });
+      } else {
+        renderItems(itemsCache);
+      }
     }
 
     function renderItems(items) {
       const active = items.filter(i => !i.is_completed);
       const completed = items.filter(i => i.is_completed);
 
+      // Helper function to render image with skeleton
+      const renderImage = (item) => {
+        if (!item.image_url) return '';
+        
+        const isOptimistic = item.isOptimistic;
+        const skeletonClass = isOptimistic ? 'mini-img-skeleton' : '';
+        const imgClass = isOptimistic ? 'mini-img loading' : 'mini-img';
+        const onLoadHandler = isOptimistic ? `onload="this.classList.remove('loading'); this.previousElementSibling.style.display='none'"` : '';
+        
+        return `
+          ${isOptimistic ? `<div class="${skeletonClass}"></div>` : ''}
+          <img class="${imgClass}" src="${sanitizeHTML(item.image_url)}" alt="${sanitizeHTML(item.item)}" onclick="showImage('${sanitizeHTML(item.image_url)}')" ${onLoadHandler}>
+        `;
+      };
+
+      // Helper function to render item
+      const renderItem = (item, isCompleted) => {
+        const optimisticClass = item.isOptimistic ? 'optimistic' : '';
+        const clickAction = item.isOptimistic ? '' : `onclick="toggleItem('${sanitizeHTML(item.id)}', ${!isCompleted})"`;
+        const deleteAction = item.isOptimistic ? '' : `onclick="deleteItem('${sanitizeHTML(item.id)}', '${item.image_url ? sanitizeHTML(item.image_url) : ''}')"`;
+        const ariaLabel = item.isOptimistic ? 'Adding item...' : `Delete ${sanitizeHTML(item.item)}`;
+        
+        return `
+          <div class="todo-item ${isCompleted ? 'completed' : ''} ${optimisticClass}" data-id="${sanitizeHTML(item.id)}" data-image-url="${item.image_url ? sanitizeHTML(item.image_url) : ''}">
+            <div class="task-container">
+              ${renderImage(item)}
+              <span class="task-text" ${clickAction}>${sanitizeHTML(item.item)}</span>
+            </div>
+            <button class="delete-btn" ${deleteAction} aria-label="${ariaLabel}" ${item.isOptimistic ? 'disabled' : ''}>×</button>
+          </div>
+        `;
+      };
+
       activeList.innerHTML = active.length === 0
         ? '<div class="empty-state">Nothing on the list yet...</div>'
-        : active.map(item => `
-          <div class="todo-item" data-id="${sanitizeHTML(item.id)}" data-image-url="${item.image_url ? sanitizeHTML(item.image_url) : ''}">
-            <div class="task-container">
-              ${item.image_url ? `<img class="mini-img" src="${sanitizeHTML(item.image_url)}" alt="${sanitizeHTML(item.item)}" onclick="showImage('${sanitizeHTML(item.image_url)}')">` : ''}
-              <span class="task-text" onclick="toggleItem('${sanitizeHTML(item.id)}', true)">${sanitizeHTML(item.item)}</span>
-            </div>
-            <button class="delete-btn" onclick="deleteItem('${sanitizeHTML(item.id)}', '${item.image_url ? sanitizeHTML(item.image_url) : ''}')" aria-label="Delete ${sanitizeHTML(item.item)}">×</button>
-          </div>
-        `).join('');
+        : active.map(item => renderItem(item, false)).join('');
 
       completedList.innerHTML = completed.length === 0
         ? '<div class="empty-state">Nothing bought yet</div>'
-        : completed.map(item => `
-          <div class="todo-item completed" data-id="${sanitizeHTML(item.id)}" data-image-url="${item.image_url ? sanitizeHTML(item.image_url) : ''}">
-            <div class="task-container">
-              ${item.image_url ? `<img class="mini-img" src="${sanitizeHTML(item.image_url)}" alt="${sanitizeHTML(item.item)}" onclick="showImage('${sanitizeHTML(item.image_url)}')">` : ''}
-              <span class="task-text" onclick="toggleItem('${sanitizeHTML(item.id)}', false)">${sanitizeHTML(item.item)}</span>
-            </div>
-            <button class="delete-btn" onclick="deleteItem('${sanitizeHTML(item.id)}', '${item.image_url ? sanitizeHTML(item.image_url) : ''}')" aria-label="Delete ${sanitizeHTML(item.item)}">×</button>
-          </div>
-        `).join('');
+        : completed.map(item => renderItem(item, true)).join('');
 
       clearBtn.style.display = completed.length > 0 ? 'block' : 'none';
     }
@@ -478,32 +555,56 @@
       const text = itemInput.value.trim();
       if (!text) return;
 
-      // Show loading state
       isAdding = true;
       const addButton = document.getElementById('addButton');
-      const loadingIndicator = document.getElementById('loadingIndicator');
-      const loadingText = document.getElementById('loadingText');
       const preview = document.getElementById('imagePreview');
       const previewImg = document.getElementById('previewImg');
+      const tempImageFile = selectedImageFile;
+      const tempImageUrl = tempImageFile ? URL.createObjectURL(tempImageFile) : null;
       
       addButton.disabled = true;
-      addButton.textContent = selectedImageFile ? 'Uploading...' : 'Adding...';
-      loadingText.textContent = selectedImageFile ? 'Uploading image...' : 'Adding item...';
-      loadingIndicator.classList.remove('hidden');
+      addButton.textContent = tempImageFile ? 'Uploading...' : 'Adding...';
+
+      // Create optimistic item
+      const tempId = generateTempId();
+      const optimisticItem = {
+        id: tempId,
+        item: text,
+        image_url: tempImageUrl,
+        is_completed: false,
+        created_at: new Date().toISOString(),
+        isOptimistic: true,
+        hasLocalImage: !!tempImageFile
+      };
+
+      // Optimistically add to UI immediately
+      itemsCache.unshift(optimisticItem);
+      renderItems(itemsCache);
+
+      // Reset form immediately for better UX
+      itemInput.value = '';
+      imageInput.value = '';
+      selectedImageFile = null;
+      preview.classList.remove('visible');
+      previewImg.src = '';
+      itemInput.focus();
 
       let imageUrl = null;
 
       try {
-        if (selectedImageFile) {
-          const ext = selectedImageFile.name.split('.').pop() || 'jpg';
+        if (tempImageFile) {
+          const ext = tempImageFile.name.split('.').pop() || 'jpg';
           const fileName = `${crypto.randomUUID()}.${ext}`;
 
           const { error: uploadError } = await client.storage
             .from('item-images')
-            .upload(fileName, selectedImageFile);
+            .upload(fileName, tempImageFile);
 
           if (uploadError) {
             console.error("Image upload failed:", uploadError.message);
+            // Remove optimistic item on failure
+            itemsCache = itemsCache.filter(item => item.id !== tempId);
+            renderItems(itemsCache);
             alert("Failed to upload image. Item not added.");
             return;
           }
@@ -521,40 +622,62 @@
 
         if (error) {
           console.error("Insert error:", error.message);
+          // Remove optimistic item on failure
+          itemsCache = itemsCache.filter(item => item.id !== tempId);
+          renderItems(itemsCache);
           alert("Failed to add item. Please try again.");
           return;
         }
 
-        // Reset form
-        itemInput.value = '';
-        imageInput.value = '';
-        selectedImageFile = null;
-        preview.classList.remove('visible');
-        previewImg.src = '';
-        itemInput.focus();
+        // The realtime subscription will update with the real item
+      } catch (err) {
+        console.error("Unexpected error:", err);
+        itemsCache = itemsCache.filter(item => item.id !== tempId);
+        renderItems(itemsCache);
+        alert("An error occurred. Please try again.");
       } finally {
-        // Hide loading state
         isAdding = false;
         addButton.disabled = false;
         addButton.textContent = 'Add';
-        loadingIndicator.classList.add('hidden');
+        // Clean up object URL
+        if (tempImageUrl) {
+          URL.revokeObjectURL(tempImageUrl);
+        }
       }
     }
 
     async function toggleItem(id, shouldComplete) {
+      // Find item in cache and optimistically update
+      const itemIndex = itemsCache.findIndex(item => item.id === id);
+      if (itemIndex !== -1) {
+        itemsCache[itemIndex].is_completed = shouldComplete;
+        renderItems(itemsCache);
+      }
+
       const { error } = await client
         .from('shopping_items')
         .update({ is_completed: shouldComplete })
         .eq('id', id);
 
-      if (error) console.error("Toggle error:", error.message);
+      if (error) {
+        console.error("Toggle error:", error.message);
+        // Revert on error
+        if (itemIndex !== -1) {
+          itemsCache[itemIndex].is_completed = !shouldComplete;
+          renderItems(itemsCache);
+        }
+      }
     }
 
     async function deleteItem(id, imageUrl) {
       if (!confirm("Delete this item?")) return;
 
+      // Optimistically remove from UI immediately
+      const originalItems = [...itemsCache];
+      itemsCache = itemsCache.filter(item => item.id !== id);
+      renderItems(itemsCache);
+
       let imageDeleted = false;
-      let rowDeleted = false;
 
       // First, try to delete the image if it exists (before deleting the row)
       if (imageUrl) {
@@ -588,11 +711,12 @@
 
       if (deleteErr) {
         console.error("Delete failed:", deleteErr.message);
+        // Restore item on error
+        itemsCache = originalItems;
+        renderItems(itemsCache);
         alert("Failed to delete item. Please try again.");
         return;
       }
-
-      rowDeleted = true;
 
       // Verify deletion was successful
       if (imageUrl && !imageDeleted) {
@@ -603,24 +727,18 @@
     async function clearCompleted() {
       if (!confirm("Remove all completed items?")) return;
 
-      // First, fetch all completed items with their image URLs
-      const { data: completedItems, error: fetchError } = await client
-        .from('shopping_items')
-        .select('id, image_url')
-        .eq('is_completed', true);
+      // Optimistically remove from UI immediately
+      const originalItems = [...itemsCache];
+      const completedItemsToDelete = itemsCache.filter(item => item.is_completed);
+      itemsCache = itemsCache.filter(item => !item.is_completed);
+      renderItems(itemsCache);
 
-      if (fetchError) {
-        console.error("Failed to fetch completed items:", fetchError.message);
-        alert("Failed to fetch completed items. Please try again.");
-        return;
-      }
-
-      if (!completedItems || completedItems.length === 0) {
+      if (completedItemsToDelete.length === 0) {
         return;
       }
 
       // Delete all associated images first
-      const imageUrls = completedItems
+      const imageUrls = completedItemsToDelete
         .filter(item => item.image_url)
         .map(item => item.image_url);
 
@@ -660,6 +778,9 @@
 
       if (deleteError) {
         console.error("Clear completed error:", deleteError.message);
+        // Restore items on error
+        itemsCache = originalItems;
+        renderItems(itemsCache);
         alert("Failed to clear completed items. Please try again.");
       }
     }
@@ -680,7 +801,7 @@
       subscription = client.channel('shopping-changes')
         .on('postgres_changes',
           { event: '*', schema: 'public', table: 'shopping_items' },
-          () => fetchItems()
+          () => debouncedFetchItems()
         )
         .subscribe();
     }
