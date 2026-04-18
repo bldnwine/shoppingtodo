@@ -616,9 +616,11 @@
           imageUrl = urlData.publicUrl;
         }
 
-        const { error } = await client
+        const { data, error } = await client
           .from('shopping_items')
-          .insert([{ item: text, image_url: imageUrl }]);
+          .insert([{ item: text, image_url: imageUrl }])
+          .select()
+          .single();
 
         if (error) {
           console.error("Insert error:", error.message);
@@ -629,7 +631,11 @@
           return;
         }
 
-        // The realtime subscription will update with the real item
+        // Replace temp ID with real ID so realtime update replaces instead of duplicates
+        if (data && data.id) {
+          const idx = itemsCache.findIndex(i => i.id === tempId);
+          if (idx !== -1) itemsCache[idx].id = data.id;
+        }
       } catch (err) {
         console.error("Unexpected error:", err);
         itemsCache = itemsCache.filter(item => item.id !== tempId);
