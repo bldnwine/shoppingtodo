@@ -42,12 +42,6 @@
       text-align: center;
     }
 
-    .input-area {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 24px;
-    }
-
     input[type="text"], input[type="password"] {
       flex: 1;
       padding: 12px 16px;
@@ -141,15 +135,6 @@
       align-items: center;
       gap: 10px;
       flex: 1;
-    }
-
-    .mini-img {
-      width: 44px;
-      height: 44px;
-      object-fit: cover;
-      border-radius: 6px;
-      cursor: pointer;
-      border: 1px solid var(--border);
     }
 
     .task-text {
@@ -398,6 +383,8 @@
     const loginError = document.getElementById('login-error');
     const loginForm = document.getElementById('login-form');
     const mainContent = document.getElementById('main-content');
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    const loadingText = document.getElementById('loadingText');
 
     let selectedImageFile = null;
     let subscription = null;
@@ -491,8 +478,17 @@
         console.error("Fetch error:", error.message);
         return;
       }
+
+      // Preserve optimistic items during active add to prevent realtime from wiping them
+      const pendingOptimistic = itemsCache.filter(item => item.isOptimistic);
       itemsCache = data || [];
-      
+
+      if (pendingOptimistic.length > 0) {
+        const serverIds = new Set(itemsCache.map(i => i.id));
+        const stillPending = pendingOptimistic.filter(item => !serverIds.has(item.id));
+        itemsCache = [...stillPending, ...itemsCache];
+      }
+
       // Use requestIdleCallback for large lists to prevent UI freezing
       if (itemsCache.length > 30 && 'requestIdleCallback' in window) {
         requestIdleCallback(() => renderItems(itemsCache), { timeout: 100 });
@@ -564,6 +560,8 @@
       
       addButton.disabled = true;
       addButton.textContent = tempImageFile ? 'Uploading...' : 'Adding...';
+      loadingText.textContent = tempImageFile ? 'Uploading image...' : 'Adding item...';
+      loadingIndicator.classList.remove('hidden');
 
       // Create optimistic item
       const tempId = generateTempId();
@@ -578,7 +576,7 @@
       };
 
       // Optimistically add to UI immediately
-      itemsCache.unshift(optimisticItem);
+      itemsCache.push(optimisticItem);
       renderItems(itemsCache);
 
       // Reset form immediately for better UX
@@ -631,10 +629,10 @@
           return;
         }
 
-        // Replace temp ID with real ID so realtime update replaces instead of duplicates
         if (data && data.id) {
-          const idx = itemsCache.findIndex(i => i.id === tempId);
-          if (idx !== -1) itemsCache[idx].id = data.id;
+          itemsCache = itemsCache.filter(item => item.id !== data.id && item.id !== tempId);
+          itemsCache.push(data);
+          renderItems(itemsCache);
         }
       } catch (err) {
         console.error("Unexpected error:", err);
@@ -645,6 +643,7 @@
         isAdding = false;
         addButton.disabled = false;
         addButton.textContent = 'Add';
+        loadingIndicator.classList.add('hidden');
         // Clean up object URL
         if (tempImageUrl) {
           URL.revokeObjectURL(tempImageUrl);
