@@ -832,11 +832,16 @@
     });
 
     async function checkSession() {
-      // TEMP: bypass auth for local testing — revert before pushing
-      loginForm.style.display = 'none';
-      mainContent.style.display = 'block';
-      await fetchItems();
-      setupRealtime();
+      const { data: { session } } = await client.auth.getSession();
+      if (session) {
+        loginForm.style.display = 'none';
+        mainContent.style.display = 'block';
+        await fetchItems();
+        setupRealtime();
+      } else {
+        loginForm.style.display = 'flex';
+        mainContent.style.display = 'none';
+      }
     }
 
     async function login() {
