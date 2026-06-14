@@ -1107,7 +1107,6 @@
           itemsCache = itemsCache.filter(item => item.id !== data.id && item.id !== tempId);
           itemsCache.push(data);
           renderItems(itemsCache);
-          client.rpc('increment_item_frequency', { target_item: text.trim() });
         }
       } catch (err) {
         console.error("Unexpected error:", err);
