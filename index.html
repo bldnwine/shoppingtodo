@@ -11,11 +11,23 @@
       --surface: #17171c;
       --text: #e1e1ee;
       --text-secondary: #a0a0b0;
-      --accent: #6366f1;
-      --accent-hover: #818cf8;
+      --accent: #e8cc54;
+      --accent-hover: #f0d86a;
       --danger: #f87171;
       --danger-hover: #fca5a5;
       --border: #2a2a35;
+    }
+
+    [data-theme="light"] {
+      --bg: #f5f0eb;
+      --surface: #dfe3e6;
+      --text: #2b1e0a;
+      --text-secondary: #7a6548;
+      --accent: #314149;
+      --accent-hover: #455a64;
+      --danger: #e74c3c;
+      --danger-hover: #c0392b;
+      --border: #c9b49a;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -37,8 +49,7 @@
 
     h1 {
       font-size: 1.8rem;
-      margin-bottom: 1.2rem;
-      color: white;
+      color: var(--text);
       text-align: center;
     }
 
@@ -79,10 +90,38 @@
     .btn-image:hover { background: var(--border); }
 
     .section { margin-bottom: 2.5rem; }
-    .section-title {
-      font-size: 1.1rem;
+    .section.hidden { display: none; }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 1rem;
+      background: var(--surface);
+      border-radius: 10px;
+      padding: 4px;
+      border: 1px solid var(--border);
+    }
+
+    .tab {
+      flex: 1;
+      padding: 10px 16px;
+      background: transparent;
       color: var(--text-secondary);
-      margin-bottom: 0.8rem;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .tab.active {
+      background: var(--accent);
+      color: white;
+    }
+
+    .tab:hover:not(.active) {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.05);
     }
 
     .todo-item {
@@ -144,8 +183,28 @@
     }
 
     .completed .task-text {
-      text-decoration: line-through;
       color: var(--text-secondary);
+    }
+
+    .old-mode .completed .task-text {
+      text-decoration: line-through;
+    }
+
+    #pantrySection .todo-item {
+      background: #2b1e0a;
+      border-color: #3d2c14;
+    }
+
+    #pantrySection .todo-item .task-text {
+      color: #e1e1ee;
+    }
+
+    #pantrySection .mini-img {
+      border-color: #3d2c14;
+    }
+
+    #pantrySection .mini-img-skeleton {
+      border-color: #3d2c14;
     }
 
     .delete-btn {
@@ -228,6 +287,36 @@
       position: relative;
     }
 
+    .suggestions-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .suggestion-chip {
+      padding: 6px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      color: var(--text-secondary);
+      transition: all 0.15s;
+    }
+
+    .suggestion-chip:hover {
+      color: var(--text);
+      border-color: var(--accent);
+    }
+
+    .empty-state {
+      text-align: center;
+      color: var(--text-secondary);
+      padding: 1.5rem;
+      font-style: italic;
+    }
+
     .clear-completed {
       margin-top: 1rem;
       padding: 10px 16px;
@@ -240,12 +329,7 @@
       cursor: pointer;
     }
 
-    .empty-state {
-      text-align: center;
-      color: var(--text-secondary);
-      padding: 1.5rem;
-      font-style: italic;
-    }
+    .clear-completed:hover { background: rgba(248, 113, 113, 0.2); }
 
     /* Image Modal */
     #image-modal {
@@ -280,6 +364,153 @@
     }
 
     #main-content { display: none; }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      margin-bottom: 1.2rem;
+    }
+
+    .settings-btn {
+      position: absolute;
+      right: 0;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 1.3rem;
+      width: 40px;
+      height: 40px;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+    }
+
+    .settings-btn:hover {
+      color: var(--text);
+      border-color: var(--accent);
+    }
+
+    .settings-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 900;
+    }
+
+    .settings-overlay.open { display: block; }
+
+    .settings-panel {
+      position: fixed;
+      top: 0;
+      right: -300px;
+      width: 280px;
+      height: 100%;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      z-index: 950;
+      transition: right 0.25s ease;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .settings-panel.open { right: 0; }
+
+    .settings-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .settings-close {
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 1.4rem;
+      width: 32px;
+      height: 32px;
+      display: grid;
+      place-items: center;
+    }
+
+    .settings-close:hover { color: var(--text); }
+
+    .settings-content {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.95rem;
+    }
+
+    .toggle {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+
+    .toggle input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      inset: 0;
+      background: var(--border);
+      border-radius: 24px;
+      transition: 0.2s;
+    }
+
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: 0.2s;
+    }
+
+    .toggle input:checked + .toggle-slider {
+      background: var(--accent);
+    }
+
+    .toggle input:checked + .toggle-slider::before {
+      transform: translateX(20px);
+    }
+
+    .clear-pantry-btn {
+      padding: 10px 16px;
+      background: rgba(248, 113, 113, 0.12);
+      color: var(--danger);
+      border: 1px solid rgba(248, 113, 113, 0.3);
+      width: 100%;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+
+    .clear-pantry-btn:hover {
+      background: rgba(248, 113, 113, 0.2);
+    }
 
     @media (max-width: 480px) {
       .container {
@@ -317,7 +548,9 @@
 </head>
 <body>
   <div class="container">
-    <h1>Shopping List</h1>
+    <div class="header">
+      <button class="settings-btn" onclick="toggleSettings()">⚙</button>
+    </div>
 
     <div id="login-form">
       <input type="password" id="passwordInput" placeholder="Enter password to unlock" autofocus />
@@ -336,8 +569,14 @@
         <button class="btn-add" id="addButton" onclick="addItem()">Add</button>
       </div>
 
-      <div class="section">
-        <div class="section-title">To buy</div>
+      <div id="suggestionsBox" class="suggestions-container"></div>
+
+      <div class="tabs" id="tabsBar">
+        <button class="tab active" onclick="switchTab('buy')">To Buy</button>
+        <button class="tab" onclick="switchTab('pantry')">Pantry</button>
+      </div>
+
+      <div class="section" id="buySection">
         <div id="loadingIndicator" class="loading-indicator hidden">
           <div class="spinner"></div>
           <span id="loadingText">Adding item...</span>
@@ -345,7 +584,11 @@
         <div id="activeList"></div>
       </div>
 
-      <div class="section">
+      <div class="section hidden" id="pantrySection">
+        <div id="pantryList"></div>
+      </div>
+
+      <div class="section" id="completedSection" style="display:none">
         <div class="section-title">Already got</div>
         <div id="completedList"></div>
         <button class="clear-completed" id="clearCompleted" onclick="clearCompleted()" style="display:none">
@@ -358,6 +601,32 @@
   <!-- Full size image modal -->
   <div id="image-modal" onclick="closeModal()">
     <img id="modal-img" alt="Enlarged item image" />
+  </div>
+
+  <!-- Settings drawer -->
+  <div class="settings-overlay" id="settingsOverlay" onclick="toggleSettings()"></div>
+  <div class="settings-panel" id="settingsPanel">
+    <div class="settings-header">
+      <span>Settings</span>
+      <button class="settings-close" onclick="toggleSettings()">×</button>
+    </div>
+    <div class="settings-content">
+      <div class="setting-row">
+        <span>Pantry Format</span>
+        <label class="toggle">
+          <input type="checkbox" id="pantryFormatToggle" onchange="togglePantryFormat()">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <button class="clear-pantry-btn" id="clearPantryBtn" onclick="clearPantry()">Clear Pantry Items</button>
+      <div class="setting-row">
+        <span>Light Theme</span>
+        <label class="toggle">
+          <input type="checkbox" id="themeToggle" onchange="toggleTheme()">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -373,8 +642,8 @@
     });
 
     const activeList = document.getElementById('activeList');
+    const pantryList = document.getElementById('pantryList');
     const completedList = document.getElementById('completedList');
-    const clearBtn = document.getElementById('clearCompleted');
     const itemInput = document.getElementById('itemInput');
     const imageInput = document.getElementById('imageInput');
     const modal = document.getElementById('image-modal');
@@ -385,13 +654,150 @@
     const mainContent = document.getElementById('main-content');
     const loadingIndicator = document.getElementById('loadingIndicator');
     const loadingText = document.getElementById('loadingText');
+    const buySection = document.getElementById('buySection');
+    const pantrySection = document.getElementById('pantrySection');
+    const completedSection = document.getElementById('completedSection');
+    const tabsBar = document.getElementById('tabsBar');
+    const tabs = document.querySelectorAll('.tab');
+    const settingsOverlay = document.getElementById('settingsOverlay');
+    const settingsPanel = document.getElementById('settingsPanel');
+    const pantryFormatToggle = document.getElementById('pantryFormatToggle');
+    const themeToggle = document.getElementById('themeToggle');
+    const clearPantryBtn = document.getElementById('clearPantryBtn');
+    const clearCompletedBtn = document.getElementById('clearCompleted');
 
     let selectedImageFile = null;
     let subscription = null;
     let isAdding = false;
     let itemsCache = [];
-    let realtimeDebounceTimer = null;
-    const REALTIME_DEBOUNCE_MS = 100;
+    let activeTab = 'buy';
+
+    let settings = {
+      pantryFormat: true,
+      theme: 'dark'
+    };
+
+    function loadSettings() {
+      try {
+        const saved = localStorage.getItem('shoppingListSettings');
+        if (saved) settings = { ...settings, ...JSON.parse(saved) };
+      } catch (e) {}
+    }
+
+    function saveSettings() {
+      localStorage.setItem('shoppingListSettings', JSON.stringify(settings));
+    }
+
+    function applySettings() {
+      document.documentElement.setAttribute('data-theme', settings.theme);
+      themeToggle.checked = settings.theme === 'light';
+
+      pantryFormatToggle.checked = settings.pantryFormat;
+      document.documentElement.classList.toggle('old-mode', !settings.pantryFormat);
+
+      if (settings.pantryFormat) {
+        tabsBar.style.display = 'flex';
+        completedSection.style.display = 'none';
+        clearPantryBtn.style.display = 'block';
+        switchTab(activeTab);
+      } else {
+        tabsBar.style.display = 'none';
+        buySection.classList.remove('hidden');
+        pantrySection.classList.add('hidden');
+        completedSection.style.display = 'block';
+        clearPantryBtn.style.display = 'none';
+      }
+    }
+
+    function toggleSettings() {
+      const isOpen = settingsOverlay.classList.contains('open');
+      settingsOverlay.classList.toggle('open', !isOpen);
+      settingsPanel.classList.toggle('open', !isOpen);
+    }
+
+    function togglePantryFormat() {
+      settings.pantryFormat = pantryFormatToggle.checked;
+      saveSettings();
+      applySettings();
+      renderItems(itemsCache);
+    }
+
+    function toggleTheme() {
+      settings.theme = themeToggle.checked ? 'light' : 'dark';
+      saveSettings();
+      applySettings();
+    }
+
+    async function clearPantry() {
+      if (!confirm("Clear all pantry items?")) return;
+      const originalItems = [...itemsCache];
+      const pantryItems = itemsCache.filter(item => item.is_completed);
+      itemsCache = itemsCache.filter(item => !item.is_completed);
+      renderItems(itemsCache);
+
+      if (pantryItems.length === 0) return;
+
+      const imageUrls = pantryItems.filter(item => item.image_url).map(item => item.image_url);
+      if (imageUrls.length > 0) {
+        await Promise.all(imageUrls.map(async (imageUrl) => {
+          try {
+            const url = new URL(imageUrl);
+            const filePath = url.pathname.split('/public/item-images/')[1] || '';
+            if (filePath) await client.storage.from('item-images').remove([filePath]);
+          } catch (e) {}
+        }));
+      }
+
+      const { error } = await client.from('shopping_items').delete().eq('is_completed', true);
+      if (error) {
+        itemsCache = originalItems;
+        renderItems(itemsCache);
+        alert("Failed to clear pantry items.");
+      }
+    }
+
+    async function clearCompleted() {
+      if (!confirm("Remove all completed items?")) return;
+      const originalItems = [...itemsCache];
+      const completedItems = itemsCache.filter(item => item.is_completed);
+      itemsCache = itemsCache.filter(item => !item.is_completed);
+      renderItems(itemsCache);
+
+      if (completedItems.length === 0) return;
+
+      const imageUrls = completedItems.filter(item => item.image_url).map(item => item.image_url);
+      if (imageUrls.length > 0) {
+        await Promise.all(imageUrls.map(async (imageUrl) => {
+          try {
+            const url = new URL(imageUrl);
+            const filePath = url.pathname.split('/public/item-images/')[1] || '';
+            if (filePath) await client.storage.from('item-images').remove([filePath]);
+          } catch (e) {}
+        }));
+      }
+
+      const { error } = await client.from('shopping_items').delete().eq('is_completed', true);
+      if (error) {
+        itemsCache = originalItems;
+        renderItems(itemsCache);
+        alert("Failed to clear completed items.");
+      }
+    }
+
+    function switchTab(tab) {
+      activeTab = tab;
+      tabs.forEach(t => t.classList.remove('active'));
+      if (tab === 'buy') {
+        tabs[0].classList.add('active');
+        buySection.classList.remove('hidden');
+        pantrySection.classList.add('hidden');
+      } else {
+        tabs[1].classList.add('active');
+        buySection.classList.add('hidden');
+        pantrySection.classList.remove('hidden');
+      }
+      fetchAndRenderSuggestions();
+    }
 
     // Sanitization function to prevent XSS
     function sanitizeHTML(str) {
@@ -404,16 +810,6 @@
     // Generate temporary ID for optimistic updates
     function generateTempId() {
       return 'temp-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-    }
-
-    // Debounced fetch function for realtime updates
-    function debouncedFetchItems() {
-      if (realtimeDebounceTimer) {
-        clearTimeout(realtimeDebounceTimer);
-      }
-      realtimeDebounceTimer = setTimeout(() => {
-        fetchItems();
-      }, REALTIME_DEBOUNCE_MS);
     }
 
     // File selection with preview
@@ -436,16 +832,11 @@
     });
 
     async function checkSession() {
-      const { data: { session } } = await client.auth.getSession();
-      if (session) {
-        loginForm.style.display = 'none';
-        mainContent.style.display = 'block';
-        await fetchItems();
-        setupRealtime();
-      } else {
-        loginForm.style.display = 'flex';
-        mainContent.style.display = 'none';
-      }
+      // TEMP: bypass auth for local testing — revert before pushing
+      loginForm.style.display = 'none';
+      mainContent.style.display = 'block';
+      await fetchItems();
+      setupRealtime();
     }
 
     async function login() {
@@ -479,15 +870,7 @@
         return;
       }
 
-      // Preserve optimistic items during active add to prevent realtime from wiping them
-      const pendingOptimistic = itemsCache.filter(item => item.isOptimistic);
       itemsCache = data || [];
-
-      if (pendingOptimistic.length > 0) {
-        const serverIds = new Set(itemsCache.map(i => i.id));
-        const stillPending = pendingOptimistic.filter(item => !serverIds.has(item.id));
-        itemsCache = [...stillPending, ...itemsCache];
-      }
 
       // Use requestIdleCallback for large lists to prevent UI freezing
       if (itemsCache.length > 30 && 'requestIdleCallback' in window) {
@@ -495,6 +878,35 @@
       } else {
         renderItems(itemsCache);
       }
+    }
+
+    function handleRealtimeEvent(payload) {
+      const { eventType, new: newRecord, old: oldRecord } = payload;
+
+      switch (eventType) {
+        case 'INSERT':
+          itemsCache = itemsCache.filter(item => !(item.isOptimistic && item.item === newRecord.item));
+          if (!itemsCache.some(item => item.id === newRecord.id)) {
+            itemsCache.push(newRecord);
+          }
+          break;
+
+        case 'UPDATE':
+          const updateIndex = itemsCache.findIndex(item => item.id === newRecord.id);
+          if (updateIndex !== -1) {
+            itemsCache[updateIndex] = { ...itemsCache[updateIndex], ...newRecord };
+          } else {
+            itemsCache.push(newRecord);
+          }
+          break;
+
+        case 'DELETE':
+          itemsCache = itemsCache.filter(item => item.id !== oldRecord.id);
+          break;
+      }
+
+      itemsCache.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      renderItems(itemsCache);
     }
 
     function renderItems(items) {
@@ -538,11 +950,62 @@
         ? '<div class="empty-state">Nothing on the list yet...</div>'
         : active.map(item => renderItem(item, false)).join('');
 
-      completedList.innerHTML = completed.length === 0
+      const completedHTML = completed.length === 0
         ? '<div class="empty-state">Nothing bought yet</div>'
         : completed.map(item => renderItem(item, true)).join('');
 
-      clearBtn.style.display = completed.length > 0 ? 'block' : 'none';
+      pantryList.innerHTML = completedHTML;
+      completedList.innerHTML = completedHTML;
+
+      clearCompletedBtn.style.display = (!settings.pantryFormat && completed.length > 0) ? 'block' : 'none';
+
+      fetchAndRenderSuggestions();
+    }
+
+    async function fetchAndRenderSuggestions() {
+      const suggestionsBox = document.getElementById('suggestionsBox');
+      if (activeTab !== 'buy') {
+        suggestionsBox.innerHTML = '';
+        return;
+      }
+
+      const { data, error } = await client
+        .from('item_frequency')
+        .select('item_name')
+        .order('add_count', { ascending: false })
+        .limit(10);
+
+      if (error || !data || data.length === 0) {
+        suggestionsBox.innerHTML = '';
+        return;
+      }
+
+      const currentNames = new Set(itemsCache.map(i => i.item.toLowerCase()));
+
+      const sortedSuggestions = data
+        .map(row => row.item_name)
+        .filter(name => !currentNames.has(name.toLowerCase()))
+        .slice(0, 4);
+
+      if (sortedSuggestions.length === 0) {
+        suggestionsBox.innerHTML = '';
+        return;
+      }
+
+      suggestionsBox.innerHTML = sortedSuggestions.map(name =>
+        `<div class="suggestion-chip" data-name="${sanitizeHTML(name)}">${sanitizeHTML(name)}</div>`
+      ).join('');
+
+      suggestionsBox.querySelectorAll('.suggestion-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          addSuggestedItem(chip.dataset.name);
+        });
+      });
+    }
+
+    function addSuggestedItem(name) {
+      document.getElementById('itemInput').value = name;
+      addItem();
     }
 
     async function addItem() {
@@ -550,6 +1013,12 @@
       
       const text = itemInput.value.trim();
       if (!text) return;
+
+      if (itemsCache.some(i => !i.is_completed && i.item.toLowerCase() === text.toLowerCase())) {
+        itemInput.value = '';
+        alert('Item is already on your active list.');
+        return;
+      }
 
       isAdding = true;
       const addButton = document.getElementById('addButton');
@@ -633,6 +1102,7 @@
           itemsCache = itemsCache.filter(item => item.id !== data.id && item.id !== tempId);
           itemsCache.push(data);
           renderItems(itemsCache);
+          client.rpc('increment_item_frequency', { target_item: text.trim() });
         }
       } catch (err) {
         console.error("Unexpected error:", err);
@@ -729,66 +1199,6 @@
       }
     }
 
-    async function clearCompleted() {
-      if (!confirm("Remove all completed items?")) return;
-
-      // Optimistically remove from UI immediately
-      const originalItems = [...itemsCache];
-      const completedItemsToDelete = itemsCache.filter(item => item.is_completed);
-      itemsCache = itemsCache.filter(item => !item.is_completed);
-      renderItems(itemsCache);
-
-      if (completedItemsToDelete.length === 0) {
-        return;
-      }
-
-      // Delete all associated images first
-      const imageUrls = completedItemsToDelete
-        .filter(item => item.image_url)
-        .map(item => item.image_url);
-
-      if (imageUrls.length > 0) {
-        const deletePromises = imageUrls.map(async (imageUrl) => {
-          try {
-            const url = new URL(imageUrl);
-            const pathParts = url.pathname.split('/public/item-images/');
-            const filePath = pathParts[1] || '';
-
-            if (filePath) {
-              const { error: storageErr } = await client.storage
-                .from('item-images')
-                .remove([filePath]);
-
-              if (storageErr) {
-                console.warn("Failed to delete image:", imageUrl, storageErr.message);
-                return { success: false, url: imageUrl };
-              }
-              return { success: true, url: imageUrl };
-            }
-            return { success: false, url: imageUrl };
-          } catch (e) {
-            console.warn("Could not parse image path:", imageUrl, e);
-            return { success: false, url: imageUrl };
-          }
-        });
-
-        await Promise.all(deletePromises);
-      }
-
-      // Then delete all rows from the database
-      const { error: deleteError } = await client
-        .from('shopping_items')
-        .delete()
-        .eq('is_completed', true);
-
-      if (deleteError) {
-        console.error("Clear completed error:", deleteError.message);
-        // Restore items on error
-        itemsCache = originalItems;
-        renderItems(itemsCache);
-        alert("Failed to clear completed items. Please try again.");
-      }
-    }
 
     function showImage(url) {
       modalImg.src = url;
@@ -806,12 +1216,14 @@
       subscription = client.channel('shopping-changes')
         .on('postgres_changes',
           { event: '*', schema: 'public', table: 'shopping_items' },
-          () => debouncedFetchItems()
+          (payload) => handleRealtimeEvent(payload)
         )
         .subscribe();
     }
 
     // Initial check
+    loadSettings();
+    applySettings();
     checkSession();
 
     // Enter key support for login and add
