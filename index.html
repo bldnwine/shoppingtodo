@@ -215,7 +215,7 @@
       align-items: center;
       justify-content: center;
       font-family: 'Space Grotesk', sans-serif;
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 600;
       color: var(--text-secondary);
     }
@@ -334,6 +334,11 @@
       display: flex;
       gap: 6px;
       margin-bottom: 16px;
+      align-items: center;
+    }
+
+    .tabs .progress-wrap {
+      margin-left: auto;
     }
 
     .tab {
@@ -398,6 +403,20 @@
       opacity: 0.7;
     }
 
+    .todo-item.staged {
+      opacity: 0.55;
+    }
+
+    .todo-item.staged .task-text {
+      color: var(--text-secondary);
+      text-decoration: line-through;
+      text-decoration-color: var(--text-dim);
+    }
+
+    .todo-item.staged:hover {
+      opacity: 0.7;
+    }
+
     .task-container {
       display: flex;
       align-items: center;
@@ -421,10 +440,6 @@
       color: var(--text-secondary);
       text-decoration: line-through;
       text-decoration-color: var(--text-dim);
-    }
-
-    .old-mode .completed .task-text {
-      text-decoration: line-through;
     }
 
     #pantrySection .todo-item.completed {
@@ -572,14 +587,14 @@
       color: var(--text-dim);
     }
 
-    /* ── Clear Completed ── */
-    .clear-completed {
+    /* ── Move to Pantry ── */
+    .move-to-pantry-wrap {
       text-align: center;
       padding-top: 12px;
       animation: fadeIn 0.3s ease;
     }
 
-    .clear-completed-btn {
+    .move-to-pantry-btn {
       padding: 8px 20px;
       border-radius: 10px;
       border: 1.5px solid var(--border);
@@ -592,10 +607,11 @@
       transition: all 0.2s;
     }
 
-    .clear-completed-btn:hover {
-      border-color: #dc3c3c;
-      color: #dc3c3c;
-      background: rgba(220, 60, 60, 0.06);
+    .move-to-pantry-btn:hover {
+      border-color: #b8860b;
+      color: #b8860b;
+      background: rgba(184, 134, 11, 0.06);
+      box-shadow: 0 0 12px rgba(184, 134, 11, 0.15);
     }
 
     /* ── Image Modal ── */
@@ -876,7 +892,7 @@
             <circle cx="19" cy="12" r="2"/>
           </svg>
         </button>
-        <div class="header-right">
+        <div class="header-right" id="headerRight">
           <span class="header-count" id="headerCount"></span>
           <div class="progress-wrap" id="progressWrap" title="Shopping progress">
             <svg class="progress-ring" width="46" height="46" viewBox="0 0 46 46">
@@ -927,17 +943,14 @@
         <div id="activeList"></div>
       </div>
 
-      <div class="section hidden" id="pantrySection">
-        <div id="pantryList"></div>
+      <div class="move-to-pantry-wrap" id="moveToPantryWrap" style="display:none">
+        <button class="move-to-pantry-btn" id="moveToPantryBtn" onclick="moveStagedToPantry()">
+          Move items to pantry
+        </button>
       </div>
 
-      <div class="section" id="completedSection" style="display:none">
-        <div id="completedList"></div>
-        <div class="clear-completed" id="clearCompletedWrap" style="display:none">
-          <button class="clear-completed-btn" id="clearCompleted" onclick="clearCompleted()">
-            Clear completed items
-          </button>
-        </div>
+      <div class="section hidden" id="pantrySection">
+        <div id="pantryList"></div>
       </div>
     </div>
   </div>
@@ -953,13 +966,6 @@
       <button class="settings-close" onclick="toggleSettings()">&times;</button>
     </div>
     <div class="settings-content">
-      <div class="setting-row">
-        <span>Pantry Format</span>
-        <label class="toggle">
-          <input type="checkbox" id="pantryFormatToggle" onchange="togglePantryFormat()">
-          <span class="toggle-slider"></span>
-        </label>
-      </div>
       <button class="clear-pantry-btn" id="clearPantryBtn" onclick="clearPantry()">Clear Pantry Items</button>
       <div class="setting-row">
         <span>Light Theme</span>
@@ -987,7 +993,6 @@
 
     const activeList = document.getElementById('activeList');
     const pantryList = document.getElementById('pantryList');
-    const completedList = document.getElementById('completedList');
     const itemInput = document.getElementById('itemInput');
     const imageInput = document.getElementById('imageInput');
     const modal = document.getElementById('image-modal');
@@ -1000,22 +1005,21 @@
     const loadingText = document.getElementById('loadingText');
     const buySection = document.getElementById('buySection');
     const pantrySection = document.getElementById('pantrySection');
-    const completedSection = document.getElementById('completedSection');
     const tabsBar = document.getElementById('tabsBar');
     const tabs = document.querySelectorAll('.tab');
     const settingsOverlay = document.getElementById('settingsOverlay');
     const settingsPanel = document.getElementById('settingsPanel');
-    const pantryFormatToggle = document.getElementById('pantryFormatToggle');
     const themeToggle = document.getElementById('themeToggle');
     const clearPantryBtn = document.getElementById('clearPantryBtn');
-    const clearCompletedBtn = document.getElementById('clearCompleted');
-    const clearCompletedWrap = document.getElementById('clearCompletedWrap');
+    const moveToPantryWrap = document.getElementById('moveToPantryWrap');
+    const moveToPantryBtn = document.getElementById('moveToPantryBtn');
     const progressFill = document.getElementById('progress-fill');
     const progressLabel = document.getElementById('progress-label');
     const headerSub = document.getElementById('header-sub');
     const toastContainer = document.getElementById('toast-container');
     const progressWrap = document.getElementById('progressWrap');
     const headerCount = document.getElementById('headerCount');
+    const headerRight = document.getElementById('headerRight');
 
     const CIRC = 2 * Math.PI * 19;
 
@@ -1024,9 +1028,11 @@
     let isAdding = false;
     let itemsCache = [];
     let activeTab = 'buy';
+    let sessionBaselineCompleted = null;
+    let totalItemsAtStart = 0;
+    let stagedIds = new Set();
 
     let settings = {
-      pantryFormat: true,
       theme: 'dark'
     };
 
@@ -1045,21 +1051,12 @@
       document.documentElement.setAttribute('data-theme', settings.theme);
       themeToggle.checked = settings.theme === 'light';
 
-      pantryFormatToggle.checked = settings.pantryFormat;
-      document.documentElement.classList.toggle('old-mode', !settings.pantryFormat);
-
-      if (settings.pantryFormat) {
-        tabsBar.style.display = 'flex';
-        completedSection.style.display = 'none';
-        clearPantryBtn.style.display = 'block';
-        switchTab(activeTab);
-      } else {
-        tabsBar.style.display = 'none';
-        buySection.classList.remove('hidden');
-        pantrySection.classList.add('hidden');
-        completedSection.style.display = 'block';
-        clearPantryBtn.style.display = 'none';
+      tabsBar.style.display = 'flex';
+      clearPantryBtn.style.display = 'block';
+      if (progressWrap.parentNode !== tabsBar) {
+        tabsBar.appendChild(progressWrap);
       }
+      switchTab(activeTab);
       updateProgress();
     }
 
@@ -1067,13 +1064,6 @@
       const isOpen = settingsOverlay.classList.contains('open');
       settingsOverlay.classList.toggle('open', !isOpen);
       settingsPanel.classList.toggle('open', !isOpen);
-    }
-
-    function togglePantryFormat() {
-      settings.pantryFormat = pantryFormatToggle.checked;
-      saveSettings();
-      applySettings();
-      renderItems(itemsCache);
     }
 
     function toggleTheme() {
@@ -1112,36 +1102,6 @@
       }
     }
 
-    async function clearCompleted() {
-      if (!confirm("Remove all completed items?")) return;
-      const originalItems = [...itemsCache];
-      const completedItems = itemsCache.filter(item => item.is_completed);
-      itemsCache = itemsCache.filter(item => !item.is_completed);
-      renderItems(itemsCache);
-
-      if (completedItems.length === 0) return;
-
-      const imageUrls = completedItems.filter(item => item.image_url).map(item => item.image_url);
-      if (imageUrls.length > 0) {
-        await Promise.all(imageUrls.map(async (imageUrl) => {
-          try {
-            const url = new URL(imageUrl);
-            const filePath = url.pathname.split('/public/item-images/')[1] || '';
-            if (filePath) await client.storage.from('item-images').remove([filePath]);
-          } catch (e) {}
-        }));
-      }
-
-      const { error } = await client.from('shopping_items').delete().eq('is_completed', true);
-      if (error) {
-        itemsCache = originalItems;
-        renderItems(itemsCache);
-        alert("Failed to clear completed items.");
-      } else {
-        showToast('Cleared completed items', 'success');
-      }
-    }
-
     function switchTab(tab) {
       activeTab = tab;
       tabs.forEach(t => t.classList.remove('active'));
@@ -1155,6 +1115,7 @@
         pantrySection.classList.remove('hidden');
       }
       fetchAndRenderSuggestions();
+      updateMoveButton();
       updateProgress();
     }
 
@@ -1170,39 +1131,32 @@
     }
 
     function updateProgress() {
-      if (settings.pantryFormat) {
-        progressWrap.style.display = 'none';
-        headerCount.style.display = 'block';
-        headerSub.style.display = 'none';
+      headerCount.style.display = 'none';
+      headerSub.style.display = 'none';
 
-        const active = itemsCache.filter(i => !i.is_completed);
-        const completed = itemsCache.filter(i => i.is_completed);
+      const active = itemsCache.filter(i => !i.is_completed);
+      const completed = itemsCache.filter(i => i.is_completed);
 
-        if (activeTab === 'buy') {
-          headerCount.textContent = active.length + ' item' + (active.length !== 1 ? 's' : '') + ' to buy';
-        } else {
-          headerCount.textContent = completed.length + ' item' + (completed.length !== 1 ? 's' : '') + ' in pantry';
-        }
-      } else {
+      if (activeTab === 'buy') {
         progressWrap.style.display = '';
         headerCount.style.display = 'none';
-        headerSub.style.display = '';
 
-        const total = itemsCache.length;
-        const done = itemsCache.filter(i => i.is_completed).length;
-        const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+        const baselineDone = sessionBaselineCompleted ? sessionBaselineCompleted.size : 0;
+        const uncheckedAtStart = Math.max(totalItemsAtStart - baselineDone, 0);
+        const completedNow = itemsCache.filter(
+          i => i.is_completed && sessionBaselineCompleted && !sessionBaselineCompleted.has(i.id)
+        ).length;
+        const stagedNow = stagedIds.size;
+        const checkedThisSession = completedNow + stagedNow;
 
-        const offset = CIRC * (1 - (total === 0 ? 0 : done / total));
+        const pct = uncheckedAtStart === 0 ? 100 : Math.round((checkedThisSession / uncheckedAtStart) * 100);
+        const offset = CIRC * (1 - (uncheckedAtStart === 0 ? 0 : checkedThisSession / uncheckedAtStart));
         progressFill.style.strokeDashoffset = offset;
         progressLabel.textContent = pct + '%';
-
-        if (total === 0) {
-          headerSub.textContent = 'Your list is empty';
-        } else if (done === total) {
-          headerSub.textContent = 'All done \u2014 nice work!';
-        } else {
-          headerSub.textContent = done + ' of ' + total + ' items checked off';
-        }
+      } else {
+        progressWrap.style.display = 'none';
+        headerCount.style.display = 'block';
+        headerCount.textContent = completed.length + ' item' + (completed.length !== 1 ? 's' : '') + ' in pantry';
       }
     }
 
@@ -1222,6 +1176,42 @@
         toast.classList.remove('show');
         setTimeout(function() { toast.remove(); }, 350);
       }, 2600);
+    }
+
+    function toggleStaged(id) {
+      if (stagedIds.has(id)) {
+        stagedIds.delete(id);
+      } else {
+        stagedIds.add(id);
+      }
+      renderItems(itemsCache);
+      updateMoveButton();
+    }
+
+    function updateMoveButton() {
+      if (stagedIds.size > 0 && activeTab === 'buy') {
+        moveToPantryWrap.style.display = 'block';
+        moveToPantryBtn.textContent = 'Move ' + stagedIds.size + ' item' + (stagedIds.size !== 1 ? 's' : '') + ' to pantry';
+      } else {
+        moveToPantryWrap.style.display = 'none';
+      }
+    }
+
+    async function moveStagedToPantry() {
+      var count = stagedIds.size;
+      if (!confirm('Move ' + count + ' item' + (count !== 1 ? 's' : '') + ' to pantry?')) return;
+
+      var ids = Array.from(stagedIds);
+      for (var i = 0; i < ids.length; i++) {
+        var id = ids[i];
+        await client.from('shopping_items').update({ is_completed: true }).eq('id', id);
+        var idx = itemsCache.findIndex(function(item) { return item.id === id; });
+        if (idx !== -1) itemsCache[idx].is_completed = true;
+      }
+
+      stagedIds.clear();
+      renderItems(itemsCache);
+      showToast('Moved to pantry', 'success');
     }
 
     imageInput.addEventListener('change', (e) => {
@@ -1288,6 +1278,13 @@
 
       itemsCache = data || [];
 
+      if (sessionBaselineCompleted === null) {
+        sessionBaselineCompleted = new Set(
+          itemsCache.filter(i => i.is_completed).map(i => i.id)
+        );
+        totalItemsAtStart = itemsCache.length;
+      }
+
       if (itemsCache.length > 30 && 'requestIdleCallback' in window) {
         requestIdleCallback(() => renderItems(itemsCache), { timeout: 100 });
       } else {
@@ -1344,12 +1341,23 @@
 
       const renderItem = (item, isCompleted) => {
         const optimisticClass = item.isOptimistic ? 'optimistic' : '';
-        const clickAction = item.isOptimistic ? '' : 'onclick="toggleItem(\'' + sanitizeHTML(item.id) + '\', ' + (!isCompleted) + ')"';
+        const isStaged = !isCompleted && stagedIds.has(item.id);
+        const stagedClass = isStaged ? 'staged' : '';
+
+        let clickAction;
+        if (item.isOptimistic) {
+          clickAction = '';
+        } else if (!isCompleted) {
+          clickAction = 'onclick="toggleStaged(\'' + sanitizeHTML(item.id) + '\')"';
+        } else {
+          clickAction = 'onclick="toggleItem(\'' + sanitizeHTML(item.id) + '\', ' + (!isCompleted) + ')"';
+        }
+
         const deleteAction = item.isOptimistic ? '' : 'onclick="deleteItem(\'' + sanitizeHTML(item.id) + '\', \'' + (item.image_url ? sanitizeHTML(item.image_url) : '') + '\')"';
         const ariaLabel = item.isOptimistic ? 'Adding item...' : 'Delete ' + sanitizeHTML(item.item);
         
         return (
-          '<div class="todo-item ' + (isCompleted ? 'completed' : '') + ' ' + optimisticClass + '" data-id="' + sanitizeHTML(item.id) + '" data-image-url="' + (item.image_url ? sanitizeHTML(item.image_url) : '') + '">' +
+          '<div class="todo-item ' + (isCompleted ? 'completed' : '') + ' ' + stagedClass + ' ' + optimisticClass + '" data-id="' + sanitizeHTML(item.id) + '" data-image-url="' + (item.image_url ? sanitizeHTML(item.image_url) : '') + '">' +
             '<div class="task-container">' +
               renderImage(item) +
               '<span class="task-text" ' + clickAction + '>' + sanitizeHTML(item.item) + '</span>' +
@@ -1390,9 +1398,8 @@
       const completedHTML = completed.length === 0 ? emptyPantryHTML : completed.map(item => renderItem(item, true)).join('');
 
       pantryList.innerHTML = completedHTML;
-      completedList.innerHTML = completedHTML;
 
-      clearCompletedWrap.style.display = (!settings.pantryFormat && completed.length > 0) ? 'block' : 'none';
+      updateMoveButton();
 
       updateProgress();
       fetchAndRenderSuggestions();
@@ -1565,6 +1572,10 @@
     }
 
     async function toggleItem(id, shouldComplete) {
+      if (!shouldComplete) {
+        if (!confirm('Move this item back to your shopping list?')) return;
+      }
+
       const itemIndex = itemsCache.findIndex(item => item.id === id);
       if (itemIndex !== -1) {
         itemsCache[itemIndex].is_completed = shouldComplete;
