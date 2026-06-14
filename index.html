@@ -220,6 +220,14 @@
       color: var(--text-secondary);
     }
 
+    .header-count {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
     /* ── Input Area ── */
     .input-area {
       display: flex;
@@ -417,6 +425,15 @@
 
     .old-mode .completed .task-text {
       text-decoration: line-through;
+    }
+
+    #pantrySection .todo-item.completed {
+      opacity: 1;
+    }
+
+    #pantrySection .completed .task-text {
+      text-decoration: none;
+      color: var(--text);
     }
 
     /* ── Mini Image ── */
@@ -860,7 +877,8 @@
           </svg>
         </button>
         <div class="header-right">
-          <div class="progress-wrap" title="Shopping progress">
+          <span class="header-count" id="headerCount"></span>
+          <div class="progress-wrap" id="progressWrap" title="Shopping progress">
             <svg class="progress-ring" width="46" height="46" viewBox="0 0 46 46">
               <circle class="progress-bg" cx="23" cy="23" r="19" />
               <circle class="progress-fill" id="progress-fill" cx="23" cy="23" r="19"
@@ -996,6 +1014,8 @@
     const progressLabel = document.getElementById('progress-label');
     const headerSub = document.getElementById('header-sub');
     const toastContainer = document.getElementById('toast-container');
+    const progressWrap = document.getElementById('progressWrap');
+    const headerCount = document.getElementById('headerCount');
 
     const CIRC = 2 * Math.PI * 19;
 
@@ -1040,6 +1060,7 @@
         completedSection.style.display = 'block';
         clearPantryBtn.style.display = 'none';
       }
+      updateProgress();
     }
 
     function toggleSettings() {
@@ -1134,6 +1155,7 @@
         pantrySection.classList.remove('hidden');
       }
       fetchAndRenderSuggestions();
+      updateProgress();
     }
 
     function sanitizeHTML(str) {
@@ -1148,20 +1170,39 @@
     }
 
     function updateProgress() {
-      const total = itemsCache.length;
-      const done = itemsCache.filter(i => i.is_completed).length;
-      const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+      if (settings.pantryFormat) {
+        progressWrap.style.display = 'none';
+        headerCount.style.display = 'block';
+        headerSub.style.display = 'none';
 
-      const offset = CIRC * (1 - (total === 0 ? 0 : done / total));
-      progressFill.style.strokeDashoffset = offset;
-      progressLabel.textContent = pct + '%';
+        const active = itemsCache.filter(i => !i.is_completed);
+        const completed = itemsCache.filter(i => i.is_completed);
 
-      if (total === 0) {
-        headerSub.textContent = 'Your list is empty';
-      } else if (done === total) {
-        headerSub.textContent = 'All done \u2014 nice work!';
+        if (activeTab === 'buy') {
+          headerCount.textContent = active.length + ' item' + (active.length !== 1 ? 's' : '') + ' to buy';
+        } else {
+          headerCount.textContent = completed.length + ' item' + (completed.length !== 1 ? 's' : '') + ' in pantry';
+        }
       } else {
-        headerSub.textContent = done + ' of ' + total + ' items checked off';
+        progressWrap.style.display = '';
+        headerCount.style.display = 'none';
+        headerSub.style.display = '';
+
+        const total = itemsCache.length;
+        const done = itemsCache.filter(i => i.is_completed).length;
+        const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+
+        const offset = CIRC * (1 - (total === 0 ? 0 : done / total));
+        progressFill.style.strokeDashoffset = offset;
+        progressLabel.textContent = pct + '%';
+
+        if (total === 0) {
+          headerSub.textContent = 'Your list is empty';
+        } else if (done === total) {
+          headerSub.textContent = 'All done \u2014 nice work!';
+        } else {
+          headerSub.textContent = done + ' of ' + total + ' items checked off';
+        }
       }
     }
 
