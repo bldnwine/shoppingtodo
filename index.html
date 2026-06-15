@@ -1033,7 +1033,6 @@
     let activeTab = 'buy';
 
     let realtimeTimeout = null;
-    let stagingUpdate = false;
 
     let settings = {
       theme: 'dark'
@@ -1181,9 +1180,7 @@
       renderItems(itemsCache);
       updateMoveButton();
       updateProgress();
-      stagingUpdate = true;
       const { error } = await client.from('shopping_items').update({ is_staged: next }).eq('id', id);
-      stagingUpdate = false;
       if (error) {
         itemsCache[idx].is_staged = !next;
         renderItems(itemsCache);
@@ -1312,7 +1309,10 @@
       clearTimeout(realtimeTimeout);
       realtimeTimeout = setTimeout(() => {
         renderItems(itemsCache);
-        if (!stagingUpdate) fetchAndRenderSuggestions();
+        const cached = itemsCache.find(i => i.id === newRecord.id);
+        if (eventType !== 'UPDATE' || (cached && cached.item !== newRecord.item)) {
+          fetchAndRenderSuggestions();
+        }
       }, 100);
     }
 
