@@ -1082,6 +1082,7 @@
       const pantryItems = itemsCache.filter(item => item.is_completed);
       itemsCache = itemsCache.filter(item => !item.is_completed);
       renderItems(itemsCache);
+      fetchAndRenderSuggestions();
 
       if (pantryItems.length === 0) return;
 
@@ -1100,6 +1101,7 @@
       if (error) {
         itemsCache = originalItems;
         renderItems(itemsCache);
+        fetchAndRenderSuggestions();
         alert("Failed to clear pantry items.");
       } else {
         showToast('Pantry cleared', 'success');
@@ -1293,9 +1295,13 @@
       }
 
       if (itemsCache.length > 30 && 'requestIdleCallback' in window) {
-        requestIdleCallback(() => renderItems(itemsCache), { timeout: 100 });
+        requestIdleCallback(() => {
+          renderItems(itemsCache);
+          fetchAndRenderSuggestions();
+        }, { timeout: 100 });
       } else {
         renderItems(itemsCache);
+        fetchAndRenderSuggestions();
       }
     }
 
@@ -1326,7 +1332,10 @@
 
       itemsCache.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
       clearTimeout(realtimeTimeout);
-      realtimeTimeout = setTimeout(() => renderItems(itemsCache), 100);
+      realtimeTimeout = setTimeout(() => {
+        renderItems(itemsCache);
+        fetchAndRenderSuggestions();
+      }, 100);
     }
 
     function renderImage(item) {
@@ -1412,7 +1421,6 @@
       updateMoveButton();
 
       updateProgress();
-      fetchAndRenderSuggestions();
     }
 
     async function fetchAndRenderSuggestions() {
@@ -1547,6 +1555,7 @@
             console.error("Image upload failed:", uploadError.message);
             itemsCache = itemsCache.filter(item => item.id !== tempId);
             renderItems(itemsCache);
+            fetchAndRenderSuggestions();
             alert("Failed to upload image. Item not added.");
             return;
           }
@@ -1568,6 +1577,7 @@
           console.error("Insert error:", error.message);
           itemsCache = itemsCache.filter(item => item.id !== tempId);
           renderItems(itemsCache);
+          fetchAndRenderSuggestions();
           alert("Failed to add item. Please try again.");
           return;
         }
@@ -1576,11 +1586,13 @@
           itemsCache = itemsCache.filter(item => item.id !== data.id && item.id !== tempId);
           itemsCache.push(data);
           renderItems(itemsCache);
+          fetchAndRenderSuggestions();
         }
       } catch (err) {
         console.error("Unexpected error:", err);
         itemsCache = itemsCache.filter(item => item.id !== tempId);
         renderItems(itemsCache);
+        fetchAndRenderSuggestions();
         alert("An error occurred. Please try again.");
       } finally {
         isAdding = false;
@@ -1631,6 +1643,7 @@
         fetchAndRenderSuggestions();
       } else {
         renderItems(itemsCache);
+        fetchAndRenderSuggestions();
       }
 
       let imageDeleted = false;
@@ -1667,6 +1680,7 @@
         console.error("Delete failed:", deleteErr.message);
         itemsCache = originalItems;
         renderItems(itemsCache);
+        fetchAndRenderSuggestions();
         alert("Failed to delete item. Please try again.");
         return;
       }
