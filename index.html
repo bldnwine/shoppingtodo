@@ -1265,7 +1265,6 @@
 
       if (error) {
         loginError.textContent = 'Invalid password. Try again.';
-        console.error('Login error:', error.message);
         return;
       }
 
@@ -1281,7 +1280,6 @@
         .order('created_at', { ascending: true });
 
       if (error) {
-        console.error("Fetch error:", error.message);
         return;
       }
 
@@ -1552,7 +1550,6 @@
             .upload(fileName, tempImageFile);
 
           if (uploadError) {
-            console.error("Image upload failed:", uploadError.message);
             itemsCache = itemsCache.filter(item => item.id !== tempId);
             renderItems(itemsCache);
             fetchAndRenderSuggestions();
@@ -1574,7 +1571,6 @@
           .single();
 
         if (error) {
-          console.error("Insert error:", error.message);
           itemsCache = itemsCache.filter(item => item.id !== tempId);
           renderItems(itemsCache);
           fetchAndRenderSuggestions();
@@ -1589,7 +1585,6 @@
           fetchAndRenderSuggestions();
         }
       } catch (err) {
-        console.error("Unexpected error:", err);
         itemsCache = itemsCache.filter(item => item.id !== tempId);
         renderItems(itemsCache);
         fetchAndRenderSuggestions();
@@ -1622,7 +1617,6 @@
         .eq('id', id);
 
       if (error) {
-        console.error("Toggle error:", error.message);
         if (itemIndex !== -1) {
           itemsCache[itemIndex].is_completed = !shouldComplete;
           renderItems(itemsCache);
@@ -1660,14 +1654,11 @@
               .remove([filePath]);
 
             if (storageErr) {
-              console.warn("Image delete failed:", storageErr.message);
             } else {
               imageDeleted = true;
-              console.log("Image deleted successfully from storage");
             }
           }
         } catch (e) {
-          console.warn("Could not parse image path:", e);
         }
       }
 
@@ -1677,7 +1668,6 @@
         .eq('id', id);
 
       if (deleteErr) {
-        console.error("Delete failed:", deleteErr.message);
         itemsCache = originalItems;
         renderItems(itemsCache);
         fetchAndRenderSuggestions();
@@ -1685,9 +1675,7 @@
         return;
       }
 
-      if (imageUrl && !imageDeleted) {
-        console.warn("Item deleted but image may still exist in storage:", imageUrl);
-      }
+      // ponytail: if imageUrl && !imageDeleted, storage may have orphaned images
     }
 
     function showImage(url) {
@@ -1726,9 +1714,7 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-          .then(reg => console.log('Service Worker registered successfully:', reg.scope))
-          .catch(err => console.error('Service Worker registration failed:', err));
+        navigator.serviceWorker.register('./sw.js');
       });
     }
   </script>
