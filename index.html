@@ -308,18 +308,15 @@
       overflow: hidden;
       margin-bottom: 0;
       opacity: 0;
-      transition: max-height 0.2s cubic-bezier(0.4, 0, 1, 1),
-                  margin-bottom 0.2s cubic-bezier(0.4, 0, 1, 1),
-                  opacity 0.15s ease;
+      transition: max-height 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                  margin-bottom 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                  opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .suggestions-wrapper.expanded {
       max-height: 80px;
       margin-bottom: 16px;
       opacity: 1;
-      transition: max-height 0.35s cubic-bezier(0.16, 1, 0.3, 1),
-                  margin-bottom 0.35s cubic-bezier(0.16, 1, 0.3, 1),
-                  opacity 0.35s ease;
     }
 
     .suggestions-container {
@@ -1737,7 +1734,7 @@
     });
 
     itemInput.addEventListener('blur', () => {
-      setTimeout(() => updateSuggestionsVisibility(), 100);
+      setTimeout(() => updateSuggestionsVisibility(), 150);
     });
   </script>
   <script>
