@@ -299,7 +299,7 @@
 
     /* ── Suggestions ── */
     .suggestions-wrapper {
-      min-height: 40px;
+      height: 72px;
       margin-bottom: 20px;
     }
 
@@ -1420,6 +1420,7 @@
       const { data, error } = await client
         .from('item_frequency')
         .select('item_name')
+        .gt('add_count', 1)
         .order('add_count', { ascending: false })
         .limit(10);
 
