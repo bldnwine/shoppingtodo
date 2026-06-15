@@ -1031,9 +1031,7 @@
     let isAdding = false;
     let itemsCache = [];
     let activeTab = 'buy';
-    let sessionBaselineCompleted = null;
-    let totalItemsAtStart = 0;
-    let stagedIds = new Set();
+
     let realtimeTimeout = null;
 
     let settings = {
@@ -1146,27 +1144,14 @@
     }
 
     function updateProgress() {
+      if (activeTab !== 'buy') { progressWrap.style.display = 'none'; return; }
+      progressWrap.style.display = '';
       const active = itemsCache.filter(i => !i.is_completed);
-      const completed = itemsCache.filter(i => i.is_completed);
-
-      if (activeTab === 'buy') {
-        progressWrap.style.display = '';
-
-        const baselineDone = sessionBaselineCompleted ? sessionBaselineCompleted.size : 0;
-        const uncheckedAtStart = Math.max(totalItemsAtStart - baselineDone, 0);
-        const completedNow = itemsCache.filter(
-          i => i.is_completed && sessionBaselineCompleted && !sessionBaselineCompleted.has(i.id)
-        ).length;
-        const stagedNow = stagedIds.size;
-        const checkedThisSession = completedNow + stagedNow;
-
-        const pct = uncheckedAtStart === 0 ? 100 : Math.round((checkedThisSession / uncheckedAtStart) * 100);
-        const offset = CIRC * (1 - (uncheckedAtStart === 0 ? 0 : checkedThisSession / uncheckedAtStart));
-        progressFill.style.strokeDashoffset = offset;
-        progressLabel.textContent = pct + '%';
-      } else {
-        progressWrap.style.display = 'none';
-      }
+      const staged = active.filter(i => i.is_staged).length;
+      const total = active.length;
+      const pct = total === 0 ? 100 : Math.round((staged / total) * 100);
+      progressFill.style.strokeDashoffset = CIRC * (1 - (total === 0 ? 0 : staged / total));
+      progressLabel.textContent = pct + '%';
     }
 
     function showToast(message, type) {
@@ -1187,38 +1172,39 @@
       }, 2600);
     }
 
-    function toggleStaged(id) {
-      if (stagedIds.has(id)) {
-        stagedIds.delete(id);
-      } else {
-        stagedIds.add(id);
-      }
+    async function toggleStaged(id) {
+      const idx = itemsCache.findIndex(i => i.id === id);
+      if (idx === -1) return;
+      const next = !itemsCache[idx].is_staged;
+      itemsCache[idx].is_staged = next;
       renderItems(itemsCache);
       updateMoveButton();
+      updateProgress();
+      client.from('shopping_items').update({ is_staged: next }).eq('id', id);
     }
 
     function updateMoveButton() {
-      if (stagedIds.size > 0 && activeTab === 'buy') {
+      const count = itemsCache.filter(i => !i.is_completed && i.is_staged).length;
+      if (count > 0 && activeTab === 'buy') {
         moveToPantryWrap.style.display = 'block';
-        moveToPantryBtn.textContent = 'Move ' + stagedIds.size + ' item' + (stagedIds.size !== 1 ? 's' : '') + ' to pantry';
+        moveToPantryBtn.textContent = 'Move ' + count + ' item' + (count !== 1 ? 's' : '') + ' to pantry';
       } else {
         moveToPantryWrap.style.display = 'none';
       }
     }
 
     async function moveStagedToPantry() {
-      var count = stagedIds.size;
+      var staged = itemsCache.filter(i => !i.is_completed && i.is_staged);
+      var count = staged.length;
       if (!confirm('Move ' + count + ' item' + (count !== 1 ? 's' : '') + ' to pantry?')) return;
 
-      var ids = Array.from(stagedIds);
-      for (var i = 0; i < ids.length; i++) {
-        var id = ids[i];
-        await client.from('shopping_items').update({ is_completed: true }).eq('id', id);
+      for (var i = 0; i < staged.length; i++) {
+        var id = staged[i].id;
+        await client.from('shopping_items').update({ is_completed: true, is_staged: false }).eq('id', id);
         var idx = itemsCache.findIndex(function(item) { return item.id === id; });
-        if (idx !== -1) itemsCache[idx].is_completed = true;
+        if (idx !== -1) { itemsCache[idx].is_completed = true; itemsCache[idx].is_staged = false; }
       }
 
-      stagedIds.clear();
       renderItems(itemsCache);
       showToast('Moved to pantry', 'success');
     }
@@ -1284,23 +1270,8 @@
       }
 
       itemsCache = data || [];
-
-      if (sessionBaselineCompleted === null) {
-        sessionBaselineCompleted = new Set(
-          itemsCache.filter(i => i.is_completed).map(i => i.id)
-        );
-        totalItemsAtStart = itemsCache.length;
-      }
-
-      if (itemsCache.length > 30 && 'requestIdleCallback' in window) {
-        requestIdleCallback(() => {
-          renderItems(itemsCache);
-          fetchAndRenderSuggestions();
-        }, { timeout: 100 });
-      } else {
-        renderItems(itemsCache);
-        fetchAndRenderSuggestions();
-      }
+      renderItems(itemsCache);
+      fetchAndRenderSuggestions();
     }
 
     function handleRealtimeEvent(payload) {
@@ -1353,7 +1324,7 @@
 
     function renderItem(item, isCompleted) {
       const optimisticClass = item.isOptimistic ? 'optimistic' : '';
-      const isStaged = !isCompleted && stagedIds.has(item.id);
+      const isStaged = !isCompleted && item.is_staged;
       const stagedClass = isStaged ? 'staged' : '';
 
       let clickAction;
