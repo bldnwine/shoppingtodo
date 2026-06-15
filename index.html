@@ -900,7 +900,6 @@
           </svg>
         </button>
         <div class="header-right" id="headerRight">
-          <span class="header-count" id="headerCount"></span>
           <div class="progress-wrap" id="progressWrap" title="Shopping progress">
             <svg class="progress-ring" width="46" height="46" viewBox="0 0 46 46">
               <circle class="progress-bg" cx="23" cy="23" r="19" />
@@ -911,7 +910,6 @@
           </div>
         </div>
       </header>
-      <p class="header-sub" id="header-sub">Your list is empty</p>
 
       <div class="input-area">
         <div class="image-preview" id="imagePreview">
@@ -1022,10 +1020,8 @@
     const moveToPantryBtn = document.getElementById('moveToPantryBtn');
     const progressFill = document.getElementById('progress-fill');
     const progressLabel = document.getElementById('progress-label');
-    const headerSub = document.getElementById('header-sub');
     const toastContainer = document.getElementById('toast-container');
     const progressWrap = document.getElementById('progressWrap');
-    const headerCount = document.getElementById('headerCount');
     const headerRight = document.getElementById('headerRight');
 
     const CIRC = 2 * Math.PI * 19;
@@ -1038,6 +1034,7 @@
     let sessionBaselineCompleted = null;
     let totalItemsAtStart = 0;
     let stagedIds = new Set();
+    let realtimeTimeout = null;
 
     let settings = {
       theme: 'dark'
@@ -1133,20 +1130,25 @@
       return div.innerHTML;
     }
 
+    function validateImageUrl(url) {
+      if (!url) return '';
+      try {
+        const parsed = new URL(url);
+        if (parsed.protocol === 'https:' || parsed.protocol === 'blob:') return url;
+      } catch (e) {}
+      return '';
+    }
+
     function generateTempId() {
-      return 'temp-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+      return 'temp-' + crypto.randomUUID();
     }
 
     function updateProgress() {
-      headerCount.style.display = 'none';
-      headerSub.style.display = 'none';
-
       const active = itemsCache.filter(i => !i.is_completed);
       const completed = itemsCache.filter(i => i.is_completed);
 
       if (activeTab === 'buy') {
         progressWrap.style.display = '';
-        headerCount.style.display = 'none';
 
         const baselineDone = sessionBaselineCompleted ? sessionBaselineCompleted.size : 0;
         const uncheckedAtStart = Math.max(totalItemsAtStart - baselineDone, 0);
@@ -1162,8 +1164,6 @@
         progressLabel.textContent = pct + '%';
       } else {
         progressWrap.style.display = 'none';
-        headerCount.style.display = 'block';
-        headerCount.textContent = completed.length + ' item' + (completed.length !== 1 ? 's' : '') + ' in pantry';
       }
     }
 
@@ -1325,54 +1325,57 @@
       }
 
       itemsCache.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-      renderItems(itemsCache);
+      clearTimeout(realtimeTimeout);
+      realtimeTimeout = setTimeout(() => renderItems(itemsCache), 100);
+    }
+
+    function renderImage(item) {
+      if (!item.image_url) return '';
+      
+      const isOptimistic = item.isOptimistic;
+      const skeletonClass = isOptimistic ? 'mini-img-skeleton' : '';
+      const imgClass = isOptimistic ? 'mini-img loading' : 'mini-img';
+      const onLoadHandler = isOptimistic ? 'onload="this.classList.remove(\'loading\'); this.previousElementSibling.style.display=\'none\'"' : '';
+      
+      const safeUrl = validateImageUrl(item.image_url);
+      return (
+        (isOptimistic ? '<div class="' + skeletonClass + '"></div>' : '') +
+        '<img class="' + imgClass + '" src="' + sanitizeHTML(safeUrl) + '" alt="' + sanitizeHTML(item.item) + '" onclick="showImage(\'' + sanitizeHTML(safeUrl) + '\')" ' + onLoadHandler + '>'
+      );
+    }
+
+    function renderItem(item, isCompleted) {
+      const optimisticClass = item.isOptimistic ? 'optimistic' : '';
+      const isStaged = !isCompleted && stagedIds.has(item.id);
+      const stagedClass = isStaged ? 'staged' : '';
+
+      let clickAction;
+      if (item.isOptimistic) {
+        clickAction = '';
+      } else if (!isCompleted) {
+        clickAction = 'onclick="toggleStaged(\'' + sanitizeHTML(item.id) + '\')"';
+      } else {
+        clickAction = 'onclick="toggleItem(\'' + sanitizeHTML(item.id) + '\', ' + (!isCompleted) + ')"';
+      }
+
+      const safeUrl = validateImageUrl(item.image_url);
+      const deleteAction = item.isOptimistic ? '' : 'onclick="deleteItem(\'' + sanitizeHTML(item.id) + '\', \'' + (safeUrl ? sanitizeHTML(safeUrl) : '') + '\')"';
+      const ariaLabel = item.isOptimistic ? 'Adding item...' : 'Delete ' + sanitizeHTML(item.item);
+      
+      return (
+        '<div class="todo-item ' + (isCompleted ? 'completed' : '') + ' ' + stagedClass + ' ' + optimisticClass + '" data-id="' + sanitizeHTML(item.id) + '" data-image-url="' + (safeUrl ? sanitizeHTML(safeUrl) : '') + '">' +
+          '<div class="task-container">' +
+            renderImage(item) +
+            '<span class="task-text" ' + clickAction + '>' + sanitizeHTML(item.item) + '</span>' +
+          '</div>' +
+          '<button class="delete-btn" ' + deleteAction + ' aria-label="' + ariaLabel + '" ' + (item.isOptimistic ? 'disabled' : '') + '>&times;</button>' +
+        '</div>'
+      );
     }
 
     function renderItems(items) {
       const active = items.filter(i => !i.is_completed);
       const completed = items.filter(i => i.is_completed);
-
-      const renderImage = (item) => {
-        if (!item.image_url) return '';
-        
-        const isOptimistic = item.isOptimistic;
-        const skeletonClass = isOptimistic ? 'mini-img-skeleton' : '';
-        const imgClass = isOptimistic ? 'mini-img loading' : 'mini-img';
-        const onLoadHandler = isOptimistic ? 'onload="this.classList.remove(\'loading\'); this.previousElementSibling.style.display=\'none\'"' : '';
-        
-        return (
-          (isOptimistic ? '<div class="' + skeletonClass + '"></div>' : '') +
-          '<img class="' + imgClass + '" src="' + sanitizeHTML(item.image_url) + '" alt="' + sanitizeHTML(item.item) + '" onclick="showImage(\'' + sanitizeHTML(item.image_url) + '\')" ' + onLoadHandler + '>'
-        );
-      };
-
-      const renderItem = (item, isCompleted) => {
-        const optimisticClass = item.isOptimistic ? 'optimistic' : '';
-        const isStaged = !isCompleted && stagedIds.has(item.id);
-        const stagedClass = isStaged ? 'staged' : '';
-
-        let clickAction;
-        if (item.isOptimistic) {
-          clickAction = '';
-        } else if (!isCompleted) {
-          clickAction = 'onclick="toggleStaged(\'' + sanitizeHTML(item.id) + '\')"';
-        } else {
-          clickAction = 'onclick="toggleItem(\'' + sanitizeHTML(item.id) + '\', ' + (!isCompleted) + ')"';
-        }
-
-        const deleteAction = item.isOptimistic ? '' : 'onclick="deleteItem(\'' + sanitizeHTML(item.id) + '\', \'' + (item.image_url ? sanitizeHTML(item.image_url) : '') + '\')"';
-        const ariaLabel = item.isOptimistic ? 'Adding item...' : 'Delete ' + sanitizeHTML(item.item);
-        
-        return (
-          '<div class="todo-item ' + (isCompleted ? 'completed' : '') + ' ' + stagedClass + ' ' + optimisticClass + '" data-id="' + sanitizeHTML(item.id) + '" data-image-url="' + (item.image_url ? sanitizeHTML(item.image_url) : '') + '">' +
-            '<div class="task-container">' +
-              renderImage(item) +
-              '<span class="task-text" ' + clickAction + '>' + sanitizeHTML(item.item) + '</span>' +
-            '</div>' +
-            '<button class="delete-btn" ' + deleteAction + ' aria-label="' + ariaLabel + '" ' + (item.isOptimistic ? 'disabled' : '') + '>&times;</button>' +
-          '</div>'
-        );
-      };
 
       const emptyBuyHTML =
         '<div class="empty-state">' +
@@ -1511,7 +1514,16 @@
       };
 
       itemsCache.push(optimisticItem);
-      renderItems(itemsCache);
+      if (activeTab === 'buy') {
+        const emptyState = activeList.querySelector('.empty-state');
+        if (emptyState) activeList.innerHTML = '';
+        activeList.insertAdjacentHTML('afterbegin', renderItem(optimisticItem, false));
+        updateMoveButton();
+        updateProgress();
+        fetchAndRenderSuggestions();
+      } else {
+        renderItems(itemsCache);
+      }
 
       itemInput.value = '';
       imageInput.value = '';
@@ -1611,7 +1623,15 @@
 
       const originalItems = [...itemsCache];
       itemsCache = itemsCache.filter(item => item.id !== id);
-      renderItems(itemsCache);
+      const el = document.querySelector('[data-id="' + CSS.escape(id) + '"]');
+      if (el) {
+        el.remove();
+        updateMoveButton();
+        updateProgress();
+        fetchAndRenderSuggestions();
+      } else {
+        renderItems(itemsCache);
+      }
 
       let imageDeleted = false;
 
