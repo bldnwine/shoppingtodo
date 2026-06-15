@@ -1180,7 +1180,13 @@
       renderItems(itemsCache);
       updateMoveButton();
       updateProgress();
-      client.from('shopping_items').update({ is_staged: next }).eq('id', id);
+      const { error } = await client.from('shopping_items').update({ is_staged: next }).eq('id', id);
+      if (error) {
+        itemsCache[idx].is_staged = !next;
+        renderItems(itemsCache);
+        updateMoveButton();
+        updateProgress();
+      }
     }
 
     function updateMoveButton() {
