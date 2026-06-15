@@ -193,6 +193,7 @@
       width: 46px;
       height: 46px;
       cursor: default;
+      transition: opacity 0.2s ease;
     }
 
     .progress-ring { transform: rotate(-90deg); }
@@ -306,12 +307,16 @@
       max-height: 0;
       overflow: hidden;
       margin-bottom: 0;
-      transition: max-height 0.3s ease, margin-bottom 0.3s ease;
+      opacity: 0;
+      transition: max-height 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                  margin-bottom 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                  opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .suggestions-wrapper.expanded {
-      max-height: 200px;
+      max-height: 80px;
       margin-bottom: 16px;
+      opacity: 1;
     }
 
     .suggestions-container {
@@ -1154,8 +1159,15 @@
     }
 
     function updateProgress() {
-      if (activeTab !== 'buy') { progressWrap.style.display = 'none'; return; }
-      progressWrap.style.display = '';
+      if (activeTab !== 'buy') {
+        progressWrap.style.visibility = 'hidden';
+        progressWrap.style.opacity = '0';
+        progressWrap.style.pointerEvents = 'none';
+        return;
+      }
+      progressWrap.style.visibility = '';
+      progressWrap.style.opacity = '';
+      progressWrap.style.pointerEvents = '';
       const active = itemsCache.filter(i => !i.is_completed);
       const staged = active.filter(i => i.is_staged).length;
       const total = active.length;
