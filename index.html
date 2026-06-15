@@ -1418,6 +1418,8 @@
         return;
       }
 
+      suggestionsBox.innerHTML = '';
+
       const { data, error } = await client
         .from('item_frequency')
         .select('item_name')
