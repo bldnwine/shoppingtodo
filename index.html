@@ -421,59 +421,10 @@
       margin-bottom: 14px;
       align-items: center;
       min-height: 42px;
-      position: relative;
     }
 
-    .search-wrap {
-      position: relative;
-      width: 34px;
-      height: 34px;
-      flex-shrink: 0;
+    .tabs .progress-wrap {
       margin-left: auto;
-      transition: width 0.25s ease;
-      align-self: center;
-    }
-
-    .search-wrap input {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      padding: 0 10px 0 32px;
-      border-radius: 10px;
-      border: 1.5px solid var(--border);
-      background: var(--card);
-      color: var(--text);
-      font-size: 13px;
-      opacity: 0;
-      cursor: pointer;
-      transition: opacity 0.2s;
-    }
-
-    .search-wrap .search-icon {
-      position: absolute;
-      left: 9px;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 16px;
-      height: 16px;
-      color: var(--text-secondary);
-      pointer-events: none;
-      transition: opacity 0.2s;
-      opacity: 0.7;
-    }
-
-    .search-wrap.expanded {
-      position: absolute;
-      inset: 0;
-      width: auto;
-      z-index: 6;
-      height: auto;
-    }
-
-    .search-wrap.expanded input {
-      opacity: 1;
-      cursor: text;
     }
 
     .tab {
@@ -1222,12 +1173,6 @@
       <div class="tabs" id="tabsBar">
         <button class="tab active" onclick="switchTab('buy')">To Buy</button>
         <button class="tab" onclick="switchTab('pantry')">Pantry</button>
-        <div class="search-wrap" id="searchWrap">
-          <input type="text" id="searchInput" placeholder="Search list..." aria-label="Search list" autocomplete="off" />
-          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
-            <circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/>
-          </svg>
-        </div>
       </div>
 
       <div class="category-tabs" id="categoryTabs">
@@ -1347,8 +1292,6 @@
     const categorySelect = document.getElementById('categorySelect');
     const categoryDot = document.getElementById('categoryDot');
     const categoryTabs = document.getElementById('categoryTabs');
-    const searchWrap = document.getElementById('searchWrap');
-    const searchInput = document.getElementById('searchInput');
     const itemMenu = document.getElementById('itemMenu');
     const menuEdit = document.getElementById('menuEdit');
     const menuMove = document.getElementById('menuMove');
@@ -1364,7 +1307,6 @@
     let selectedCategory = 'other';
     let activeCategory = null;
     let editingId = null;
-    let searchQuery = '';
 
     let realtimeTimeout = null;
 
@@ -1749,18 +1691,10 @@
 
     function renderItems(items) {
       closeItemMenu();
-      const query = searchQuery.toLowerCase();
-      const matches = i => !query || i.item.toLowerCase().includes(query);
-      const active = sortByActiveCategory(items.filter(i => !i.is_completed && matches(i)));
-      const completed = sortByActiveCategory(items.filter(i => i.is_completed && matches(i)));
+      const active = sortByActiveCategory(items.filter(i => !i.is_completed));
+      const completed = sortByActiveCategory(items.filter(i => i.is_completed));
 
       const emptyBuyHTML =
-        query
-          ? '<div class="empty-state">' +
-              '<p class="empty-title">No matches</p>' +
-              '<p class="empty-sub">Nothing matches "' + sanitizeHTML(searchQuery) + '"</p>' +
-            '</div>'
-          :
         '<div class="empty-state">' +
           '<div class="empty-icon">' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
@@ -1774,12 +1708,6 @@
         '</div>';
 
       const emptyPantryHTML =
-        query
-          ? '<div class="empty-state">' +
-              '<p class="empty-title">No matches</p>' +
-              '<p class="empty-sub">Nothing matches "' + sanitizeHTML(searchQuery) + '"</p>' +
-            '</div>'
-          :
         '<div class="empty-state">' +
           '<div class="empty-icon">' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
@@ -2258,31 +2186,6 @@
     categorySelect.addEventListener('change', () => {
       selectedCategory = categorySelect.value;
       categoryDot.style.background = 'var(--cat-' + selectedCategory + ')';
-    });
-
-    searchInput.addEventListener('focus', () => {
-      searchWrap.classList.add('expanded');
-    });
-
-    searchInput.addEventListener('blur', () => {
-      searchWrap.classList.remove('expanded');
-      if (searchQuery) {
-        searchQuery = '';
-        searchInput.value = '';
-        renderItems(itemsCache);
-      }
-    });
-
-    searchInput.addEventListener('input', () => {
-      searchQuery = searchInput.value;
-      renderItems(itemsCache);
-    });
-
-    searchInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        searchInput.value = '';
-        searchInput.blur();
-      }
     });
 
     function updateCategoryButtons() {
