@@ -2116,7 +2116,7 @@
       if (itemMenu.classList.contains('open') && !e.target.closest('.item-menu') && !e.target.closest('.menu-btn')) {
         closeItemMenu();
       }
-      if (editingId !== null && !e.target.closest('.edit-form')) {
+      if (editingId !== null && !e.target.closest('.edit-form') && !e.target.closest('.item-menu')) {
         saveEdit(editingId);
       }
     });
