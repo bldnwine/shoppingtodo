@@ -34,6 +34,12 @@
       --danger-hover: #fca5a5;
       --border: #2a2a35;
       --shadow: rgba(0, 0, 0, 0.4);
+      --cat-protein: #c98a5b;
+      --cat-produce: #6fbf8f;
+      --cat-spices: #ef6a5a;
+      --cat-baked: #f2d9a8;
+      --cat-household: #e88aab;
+      --cat-other: var(--text-secondary);
     }
 
     [data-theme="light"] {
@@ -54,6 +60,12 @@
       --danger-hover: #c0392b;
       --border: #c9b49a;
       --shadow: rgba(0, 0, 0, 0.06);
+      --cat-protein: #8a5a2b;
+      --cat-produce: #2e7d4f;
+      --cat-spices: #c0392b;
+      --cat-baked: #a67c3d;
+      --cat-household: #c2557c;
+      --cat-other: var(--text-secondary);
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -240,6 +252,61 @@
       position: relative;
     }
 
+    .input-wrap {
+      flex: 1;
+      position: relative;
+      display: flex;
+      min-width: 0;
+    }
+
+    .input-wrap input {
+      flex: 1;
+      min-width: 0;
+      width: 100%;
+      padding-right: 58px;
+    }
+
+    .category-trigger {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      pointer-events: none;
+    }
+
+    .category-trigger select {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+      pointer-events: auto;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .category-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--cat-other);
+      flex-shrink: 0;
+      transition: background 0.2s;
+    }
+
+    .category-trigger svg {
+      width: 11px;
+      height: 11px;
+      color: var(--text-dim);
+      flex-shrink: 0;
+    }
+
     .image-preview {
       display: none;
       position: absolute;
@@ -382,6 +449,43 @@
       border-color: var(--text);
     }
 
+    .category-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+
+    .cat-btn {
+      padding: 5px 12px;
+      border-radius: 8px;
+      border: 1.5px solid var(--c, var(--cat-other));
+      background: transparent;
+      color: var(--c, var(--cat-other));
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12.5px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .cat-btn[data-cat="protein"] { --c: var(--cat-protein); }
+    .cat-btn[data-cat="produce"] { --c: var(--cat-produce); }
+    .cat-btn[data-cat="spices"] { --c: var(--cat-spices); }
+    .cat-btn[data-cat="baked"] { --c: var(--cat-baked); }
+    .cat-btn[data-cat="household"] { --c: var(--cat-household); }
+    .cat-btn[data-cat="other"] { --c: var(--cat-other); }
+
+    .cat-btn:hover {
+      background: color-mix(in srgb, var(--c) 12%, transparent);
+    }
+
+    .cat-btn.active {
+      background: color-mix(in srgb, var(--c) 22%, transparent);
+      border-color: var(--c);
+    }
+
     /* ── Sections ── */
     .section { margin-bottom: 1.25rem; }
     .section.hidden { display: none; }
@@ -405,6 +509,22 @@
     .todo-item:hover {
       background: var(--card-hover);
       border-color: var(--text-dim);
+    }
+
+    .todo-item.cat-protein { --c: var(--cat-protein); }
+    .todo-item.cat-produce { --c: var(--cat-produce); }
+    .todo-item.cat-spices { --c: var(--cat-spices); }
+    .todo-item.cat-baked { --c: var(--cat-baked); }
+    .todo-item.cat-household { --c: var(--cat-household); }
+
+    .todo-item[class*="cat-"]:not(.cat-other) {
+      background: color-mix(in srgb, var(--c) 14%, var(--card));
+      border-color: color-mix(in srgb, var(--c) 38%, var(--card));
+    }
+
+    .todo-item[class*="cat-"]:not(.cat-other):hover {
+      background: color-mix(in srgb, var(--c) 20%, var(--card));
+      border-color: color-mix(in srgb, var(--c) 55%, var(--card));
     }
 
     .todo-item.optimistic {
@@ -522,24 +642,6 @@
 
     @media (hover: none) {
       .delete-btn { opacity: 0.5; }
-    }
-
-    /* ── Pantry Section ── */
-    #pantrySection .todo-item {
-      background: #2b1e0a;
-      border-color: #3d2c14;
-    }
-
-    #pantrySection .todo-item .task-text {
-      color: #e1e1ee;
-    }
-
-    #pantrySection .mini-img {
-      border-color: #3d2c14;
-    }
-
-    #pantrySection .mini-img-skeleton {
-      border-color: #3d2c14;
     }
 
     /* ── Loading Indicator ── */
@@ -938,7 +1040,23 @@
           </svg>
         </button>
         <input type="file" id="imageInput" accept="image/*" />
-        <input type="text" id="itemInput" placeholder="What do we need?" autocomplete="off" autofocus />
+        <div class="input-wrap">
+          <input type="text" id="itemInput" placeholder="What do we need?" autocomplete="off" autofocus />
+          <div class="category-trigger">
+            <span class="category-dot" id="categoryDot"></span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+            <select id="categorySelect" aria-label="Choose category">
+              <option value="protein">Protein</option>
+              <option value="produce">Produce</option>
+              <option value="spices">Spices</option>
+              <option value="baked">Baked</option>
+              <option value="household">Household</option>
+              <option value="other" selected>Other</option>
+            </select>
+          </div>
+        </div>
         <button class="btn-add" id="addButton" onclick="addItem()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -953,6 +1071,15 @@
       <div class="tabs" id="tabsBar">
         <button class="tab active" onclick="switchTab('buy')">To Buy</button>
         <button class="tab" onclick="switchTab('pantry')">Pantry</button>
+      </div>
+
+      <div class="category-tabs" id="categoryTabs">
+        <button class="cat-btn" data-cat="protein">Protein</button>
+        <button class="cat-btn" data-cat="produce">Produce</button>
+        <button class="cat-btn" data-cat="spices">Spices</button>
+        <button class="cat-btn" data-cat="baked">Baked</button>
+        <button class="cat-btn" data-cat="household">Household</button>
+        <button class="cat-btn" data-cat="other">Other</button>
       </div>
 
       <div class="section" id="buySection">
@@ -1038,6 +1165,9 @@
     const toastContainer = document.getElementById('toast-container');
     const progressWrap = document.getElementById('progressWrap');
     const headerRight = document.getElementById('headerRight');
+    const categorySelect = document.getElementById('categorySelect');
+    const categoryDot = document.getElementById('categoryDot');
+    const categoryTabs = document.getElementById('categoryTabs');
 
     const CIRC = 2 * Math.PI * 19;
 
@@ -1046,6 +1176,8 @@
     let isAdding = false;
     let itemsCache = [];
     let activeTab = 'buy';
+    let selectedCategory = 'other';
+    let activeCategory = null;
 
     let realtimeTimeout = null;
 
@@ -1372,7 +1504,7 @@
       const ariaLabel = item.isOptimistic ? 'Adding item...' : 'Delete ' + sanitizeHTML(item.item);
       
       return (
-        '<div class="todo-item ' + (isCompleted ? 'completed' : '') + ' ' + stagedClass + ' ' + optimisticClass + '" data-id="' + sanitizeHTML(item.id) + '" data-image-url="' + (safeUrl ? sanitizeHTML(safeUrl) : '') + '">' +
+        '<div class="todo-item cat-' + getCategory(item) + ' ' + (isCompleted ? 'completed' : '') + ' ' + stagedClass + ' ' + optimisticClass + '" data-id="' + sanitizeHTML(item.id) + '" data-image-url="' + (safeUrl ? sanitizeHTML(safeUrl) : '') + '">' +
           '<div class="task-container">' +
             renderImage(item) +
             '<span class="task-text" ' + clickAction + '>' + sanitizeHTML(item.item) + '</span>' +
@@ -1382,9 +1514,22 @@
       );
     }
 
+    function getCategory(item) {
+      return item.category || 'other';
+    }
+
+    function sortByActiveCategory(list) {
+      if (!activeCategory) return list;
+      const cat = activeCategory;
+      return [
+        ...list.filter(i => getCategory(i) === cat),
+        ...list.filter(i => getCategory(i) !== cat)
+      ];
+    }
+
     function renderItems(items) {
-      const active = items.filter(i => !i.is_completed);
-      const completed = items.filter(i => i.is_completed);
+      const active = sortByActiveCategory(items.filter(i => !i.is_completed));
+      const completed = sortByActiveCategory(items.filter(i => i.is_completed));
 
       const emptyBuyHTML =
         '<div class="empty-state">' +
@@ -1531,6 +1676,7 @@
         id: tempId,
         item: text,
         image_url: tempImageUrl,
+        category: selectedCategory,
         is_completed: false,
         created_at: new Date().toISOString(),
         isOptimistic: true,
@@ -1584,7 +1730,7 @@
 
         const { data, error } = await client
           .from('shopping_items')
-          .insert([{ item: text, image_url: imageUrl }])
+          .insert([{ item: text, image_url: imageUrl, category: selectedCategory }])
           .select()
           .single();
 
@@ -1735,6 +1881,25 @@
 
     itemInput.addEventListener('blur', () => {
       setTimeout(() => updateSuggestionsVisibility(), 150);
+    });
+
+    categorySelect.addEventListener('change', () => {
+      selectedCategory = categorySelect.value;
+      categoryDot.style.background = 'var(--cat-' + selectedCategory + ')';
+    });
+
+    function updateCategoryButtons() {
+      categoryTabs.querySelectorAll('.cat-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.cat === activeCategory);
+      });
+    }
+
+    categoryTabs.addEventListener('click', (e) => {
+      const btn = e.target.closest('.cat-btn');
+      if (!btn) return;
+      activeCategory = activeCategory === btn.dataset.cat ? null : btn.dataset.cat;
+      updateCategoryButtons();
+      renderItems(itemsCache);
     });
   </script>
   <script>
