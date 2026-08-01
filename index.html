@@ -34,10 +34,10 @@
       --danger-hover: #fca5a5;
       --border: #2a2a35;
       --shadow: rgba(0, 0, 0, 0.4);
-      --cat-protein: #c98a5b;
+      --cat-protein: #9c531c;
       --cat-produce: #6fbf8f;
       --cat-spices: #ef6a5a;
-      --cat-baked: #f2d9a8;
+      --cat-baked: #f3df72;
       --cat-household: #e88aab;
       --cat-other: var(--text-secondary);
     }
@@ -60,10 +60,10 @@
       --danger-hover: #c0392b;
       --border: #c9b49a;
       --shadow: rgba(0, 0, 0, 0.06);
-      --cat-protein: #8a5a2b;
+      --cat-protein: #6b3a15;
       --cat-produce: #2e7d4f;
       --cat-spices: #c0392b;
-      --cat-baked: #a67c3d;
+      --cat-baked: #b08c1a;
       --cat-household: #c2557c;
       --cat-other: var(--text-secondary);
     }
@@ -518,13 +518,25 @@
     .todo-item.cat-household { --c: var(--cat-household); }
 
     .todo-item[class*="cat-"]:not(.cat-other) {
-      background: color-mix(in srgb, var(--c) 14%, var(--card));
-      border-color: color-mix(in srgb, var(--c) 38%, var(--card));
+      background: color-mix(in srgb, var(--c) 22%, var(--card));
+      border: 1.5px solid var(--c);
     }
 
     .todo-item[class*="cat-"]:not(.cat-other):hover {
-      background: color-mix(in srgb, var(--c) 20%, var(--card));
-      border-color: color-mix(in srgb, var(--c) 55%, var(--card));
+      background: color-mix(in srgb, var(--c) 30%, var(--card));
+      border-color: var(--c);
+    }
+
+    .todo-item[class*="cat-"]:not(.cat-other) .task-text {
+      color: var(--c);
+    }
+
+    .todo-item[class*="cat-"]:not(.cat-other).staged .task-text {
+      color: var(--text-secondary);
+    }
+
+    #pantrySection .todo-item[class*="cat-"]:not(.cat-other).completed .task-text {
+      color: var(--c);
     }
 
     .todo-item.optimistic {
@@ -617,14 +629,13 @@
 
     .mini-img.loading { display: none; }
 
-    /* ── Delete Button ── */
-    .delete-btn {
+    /* ── Item Menu Button ── */
+    .menu-btn {
       width: 30px;
       height: 30px;
       border-radius: 8px;
       background: transparent;
       color: var(--text-dim);
-      font-size: 1.2rem;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -633,16 +644,102 @@
       transition: all 0.2s;
     }
 
-    .todo-item:hover .delete-btn { opacity: 1; }
+    .menu-btn svg {
+      width: 16px;
+      height: 16px;
+    }
 
-    .delete-btn:hover {
-      background: rgba(248, 113, 113, 0.1);
-      color: var(--danger);
+    .todo-item:hover .menu-btn { opacity: 1; }
+
+    .menu-btn:hover {
+      background: var(--card-hover);
+      color: var(--text-secondary);
     }
 
     @media (hover: none) {
-      .delete-btn { opacity: 0.5; }
+      .menu-btn { opacity: 0.5; }
     }
+
+    /* ── Item Menu ── */
+    .item-menu {
+      display: none;
+      position: fixed;
+      z-index: 1100;
+      min-width: 160px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 12px 40px var(--shadow);
+      padding: 6px;
+      flex-direction: column;
+    }
+
+    .item-menu.open { display: flex; }
+
+    .item-menu-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13.5px;
+      font-weight: 500;
+      text-align: left;
+      transition: all 0.15s;
+    }
+
+    .item-menu-btn:hover { background: var(--card-hover); }
+
+    .item-menu-btn.danger { color: var(--danger); }
+    .item-menu-btn.danger:hover { background: rgba(248, 113, 113, 0.1); }
+
+    /* ── Edit Row ── */
+    .edit-form {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .edit-form .edit-input {
+      flex: 1;
+      min-width: 0;
+      height: 38px;
+      padding: 0 58px 0 14px;
+      border-radius: 10px;
+      border: 1.5px solid var(--border);
+      background: var(--input-bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14.5px;
+      outline: none;
+    }
+
+    .edit-form .edit-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+
+    .edit-save {
+      width: 34px;
+      height: 34px;
+      border-radius: 9px;
+      background: var(--accent);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .edit-save:hover { filter: brightness(1.1); }
+
+    .edit-save svg { width: 16px; height: 16px; }
 
     /* ── Loading Indicator ── */
     .loading-indicator {
@@ -1126,6 +1223,27 @@
 
   <div class="toast-container" id="toast-container"></div>
 
+  <div class="item-menu" id="itemMenu" role="menu">
+    <button class="item-menu-btn" id="menuEdit" role="menuitem">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15">
+        <path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/>
+      </svg>
+      Edit
+    </button>
+    <button class="item-menu-btn" id="menuMove" role="menuitem">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
+        <path d="M9 3h6M10 3v6l-5 7a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-7V3"/>
+      </svg>
+      Move to pantry
+    </button>
+    <button class="item-menu-btn danger" id="menuDelete" role="menuitem">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
+        <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
+      </svg>
+      Delete
+    </button>
+  </div>
+
   <script>
     const SUPABASE_URL = 'https://hpdokobntovytsgylpra.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_k80QkmztNinOHWyj6n_-tg_l8tdeTRp';
@@ -1168,6 +1286,10 @@
     const categorySelect = document.getElementById('categorySelect');
     const categoryDot = document.getElementById('categoryDot');
     const categoryTabs = document.getElementById('categoryTabs');
+    const itemMenu = document.getElementById('itemMenu');
+    const menuEdit = document.getElementById('menuEdit');
+    const menuMove = document.getElementById('menuMove');
+    const menuDelete = document.getElementById('menuDelete');
 
     const CIRC = 2 * Math.PI * 19;
 
@@ -1178,6 +1300,7 @@
     let activeTab = 'buy';
     let selectedCategory = 'other';
     let activeCategory = null;
+    let editingId = null;
 
     let realtimeTimeout = null;
 
@@ -1255,6 +1378,8 @@
 
     function switchTab(tab) {
       activeTab = tab;
+      closeItemMenu();
+      cancelEdit();
       tabs.forEach(t => t.classList.remove('active'));
       if (tab === 'buy') {
         tabs[0].classList.add('active');
@@ -1500,16 +1625,47 @@
       }
 
       const safeUrl = validateImageUrl(item.image_url);
-      const deleteAction = item.isOptimistic ? '' : 'onclick="deleteItem(\'' + sanitizeHTML(item.id) + '\', \'' + (safeUrl ? sanitizeHTML(safeUrl) : '') + '\')"';
-      const ariaLabel = item.isOptimistic ? 'Adding item...' : 'Delete ' + sanitizeHTML(item.item);
-      
-      return (
-        '<div class="todo-item cat-' + getCategory(item) + ' ' + (isCompleted ? 'completed' : '') + ' ' + stagedClass + ' ' + optimisticClass + '" data-id="' + sanitizeHTML(item.id) + '" data-image-url="' + (safeUrl ? sanitizeHTML(safeUrl) : '') + '">' +
+      const isEditing = editingId === item.id && !item.isOptimistic;
+      const menuAction = item.isOptimistic ? '' : 'onclick="openItemMenu(\'' + sanitizeHTML(item.id) + '\', this, \'' + (safeUrl ? sanitizeHTML(safeUrl) : '') + '\')"';
+      const ariaLabel = item.isOptimistic ? 'Adding item...' : 'Item options';
+
+      let content;
+      if (isEditing) {
+        const cat = getCategory(item);
+        const catOptions = ['protein', 'produce', 'spices', 'baked', 'household', 'other'].map(c =>
+          '<option value="' + c + '"' + (c === cat ? ' selected' : '') + '>' + c.charAt(0).toUpperCase() + c.slice(1) + '</option>'
+        ).join('');
+        content =
+          '<div class="task-container">' +
+            renderImage(item) +
+            '<div class="edit-form">' +
+              '<div class="input-wrap">' +
+                '<input class="edit-input" type="text" value="' + sanitizeHTML(item.item) + '" onkeydown="editKeyHandler(event, \'' + sanitizeHTML(item.id) + '\')">' +
+                '<div class="category-trigger">' +
+                  '<span class="category-dot" style="background:var(--cat-' + cat + ')"></span>' +
+                  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>' +
+                  '<select class="edit-cat-select" aria-label="Category">' + catOptions + '</select>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+          '<button class="edit-save" onclick="saveEdit(\'' + sanitizeHTML(item.id) + '\')" aria-label="Save">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
+          '</button>';
+      } else {
+        content =
           '<div class="task-container">' +
             renderImage(item) +
             '<span class="task-text" ' + clickAction + '>' + sanitizeHTML(item.item) + '</span>' +
           '</div>' +
-          '<button class="delete-btn" ' + deleteAction + ' aria-label="' + ariaLabel + '" ' + (item.isOptimistic ? 'disabled' : '') + '>&times;</button>' +
+          '<button class="menu-btn" ' + menuAction + ' aria-label="' + ariaLabel + '" ' + (item.isOptimistic ? 'disabled' : '') + '>' +
+            '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>' +
+          '</button>';
+      }
+
+      return (
+        '<div class="todo-item cat-' + getCategory(item) + ' ' + (isCompleted ? 'completed' : '') + ' ' + stagedClass + ' ' + optimisticClass + '" data-id="' + sanitizeHTML(item.id) + '" data-image-url="' + (safeUrl ? sanitizeHTML(safeUrl) : '') + '">' +
+          content +
         '</div>'
       );
     }
@@ -1528,6 +1684,7 @@
     }
 
     function renderItems(items) {
+      closeItemMenu();
       const active = sortByActiveCategory(items.filter(i => !i.is_completed));
       const completed = sortByActiveCategory(items.filter(i => i.is_completed));
 
@@ -1841,6 +1998,136 @@
 
       // ponytail: if imageUrl && !imageDeleted, storage may have orphaned images
     }
+
+    function openItemMenu(id, btn, imageUrl) {
+      itemMenu.dataset.id = id;
+      itemMenu.dataset.imageUrl = imageUrl || '';
+      menuMove.style.display = activeTab === 'buy' ? '' : 'none';
+      itemMenu.classList.add('open');
+      const rect = btn.getBoundingClientRect();
+      const menuW = itemMenu.offsetWidth || 160;
+      const menuH = itemMenu.offsetHeight || 110;
+      let top = rect.bottom + 6;
+      if (top + menuH > window.innerHeight - 8) {
+        top = Math.max(8, rect.top - menuH - 6);
+      }
+      let left = rect.right - menuW;
+      if (left < 8) left = 8;
+      itemMenu.style.top = top + 'px';
+      itemMenu.style.left = left + 'px';
+      itemMenu.style.right = 'auto';
+    }
+
+    function closeItemMenu() {
+      itemMenu.classList.remove('open');
+    }
+
+    menuEdit.addEventListener('click', () => {
+      const id = itemMenu.dataset.id;
+      closeItemMenu();
+      startEdit(id);
+    });
+
+    menuMove.addEventListener('click', () => {
+      const id = itemMenu.dataset.id;
+      closeItemMenu();
+      moveItemToPantry(id);
+    });
+
+    menuDelete.addEventListener('click', () => {
+      const id = itemMenu.dataset.id;
+      const imageUrl = itemMenu.dataset.imageUrl;
+      closeItemMenu();
+      deleteItem(id, imageUrl);
+    });
+
+    async function moveItemToPantry(id) {
+      const idx = itemsCache.findIndex(i => i.id === id);
+      if (idx === -1) return;
+      const originalItems = [...itemsCache];
+      itemsCache[idx].is_completed = true;
+      itemsCache[idx].is_staged = false;
+      renderItems(itemsCache);
+      const { error } = await client
+        .from('shopping_items')
+        .update({ is_completed: true, is_staged: false })
+        .eq('id', id);
+      if (error) {
+        itemsCache = originalItems;
+        renderItems(itemsCache);
+        alert("Failed to move item to pantry.");
+      }
+    }
+
+    function startEdit(id) {
+      editingId = id;
+      renderItems(itemsCache);
+      const el = document.querySelector('.todo-item[data-id="' + CSS.escape(id) + '"]');
+      const input = el ? el.querySelector('.edit-input') : null;
+      if (input) {
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+      }
+    }
+
+    function cancelEdit() {
+      if (editingId === null) return;
+      editingId = null;
+      renderItems(itemsCache);
+    }
+
+    function editKeyHandler(e, id) {
+      if (e.key === 'Enter') {
+        saveEdit(id);
+      } else if (e.key === 'Escape') {
+        cancelEdit();
+      }
+    }
+
+    async function saveEdit(id) {
+      const el = document.querySelector('.todo-item[data-id="' + CSS.escape(id) + '"]');
+      if (!el) return;
+      const input = el.querySelector('.edit-input');
+      if (!input) return;
+      const select = el.querySelector('.edit-cat-select');
+      const text = input.value.trim();
+      if (!text) return;
+      const idx = itemsCache.findIndex(i => i.id === id);
+      if (idx === -1) return;
+      const originalItems = [...itemsCache];
+      itemsCache[idx].item = text;
+      itemsCache[idx].category = select.value;
+      editingId = null;
+      renderItems(itemsCache);
+      const { error } = await client
+        .from('shopping_items')
+        .update({ item: text, category: select.value })
+        .eq('id', id);
+      if (error) {
+        itemsCache = originalItems;
+        editingId = null;
+        renderItems(itemsCache);
+        alert("Failed to save changes.");
+      }
+      fetchAndRenderSuggestions();
+    }
+
+    document.addEventListener('click', (e) => {
+      if (itemMenu.classList.contains('open') && !e.target.closest('.item-menu') && !e.target.closest('.menu-btn')) {
+        closeItemMenu();
+      }
+      if (editingId !== null && !e.target.closest('.edit-form')) {
+        saveEdit(editingId);
+      }
+    });
+
+    window.addEventListener('scroll', closeItemMenu, true);
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && itemMenu.classList.contains('open')) {
+        closeItemMenu();
+      }
+    });
 
     function showImage(url) {
       modalImg.src = url;
