@@ -1689,9 +1689,18 @@
       ];
     }
 
+    function sortActiveItems(list) {
+      const unstaged = list.filter(i => !i.is_staged);
+      const staged = list.filter(i => i.is_staged);
+      return [
+        ...sortByActiveCategory(unstaged),
+        ...sortByActiveCategory(staged)
+      ];
+    }
+
     function renderItems(items) {
       closeItemMenu();
-      const active = sortByActiveCategory(items.filter(i => !i.is_completed));
+      const active = sortActiveItems(items.filter(i => !i.is_completed));
       const completed = sortByActiveCategory(items.filter(i => i.is_completed));
 
       const emptyBuyHTML =
@@ -1856,16 +1865,8 @@
       };
 
       itemsCache.push(optimisticItem);
-      if (activeTab === 'buy') {
-        const emptyState = activeList.querySelector('.empty-state');
-        if (emptyState) activeList.innerHTML = '';
-        activeList.insertAdjacentHTML('afterbegin', renderItem(optimisticItem, false));
-        updateMoveButton();
-        updateProgress();
-        fetchAndRenderSuggestions();
-      } else {
-        renderItems(itemsCache);
-      }
+      renderItems(itemsCache);
+      fetchAndRenderSuggestions();
 
       itemInput.value = '';
       imageInput.value = '';
