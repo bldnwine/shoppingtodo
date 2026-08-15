@@ -1814,9 +1814,18 @@
         return;
       }
 
-      if (itemsCache.some(i => i.is_completed && i.item.toLowerCase() === text.toLowerCase())) {
-        itemInput.value = '';
-        alert('Item is already in your pantry.');
+      const pantryItem = itemsCache.find(i => i.is_completed && i.item.toLowerCase() === text.toLowerCase());
+      if (pantryItem) {
+        if (confirm('"' + pantryItem.item + '" is already in your pantry. Move it to your shopping list?')) {
+          itemInput.value = '';
+          const preview = document.getElementById('imagePreview');
+          const previewImg = document.getElementById('previewImg');
+          imageInput.value = '';
+          selectedImageFile = null;
+          preview.classList.remove('visible');
+          previewImg.src = '';
+          await moveItemToBuy(pantryItem.id);
+        }
         return;
       }
 
@@ -1930,6 +1939,8 @@
     async function toggleItem(id, shouldComplete) {
       if (!shouldComplete) {
         if (!confirm('Move this item back to your shopping list?')) return;
+        await moveItemToBuy(id);
+        return;
       }
 
       const itemIndex = itemsCache.findIndex(item => item.id === id);
@@ -2062,6 +2073,28 @@
         itemsCache = originalItems;
         renderItems(itemsCache);
         alert("Failed to move item to pantry.");
+      }
+    }
+
+    async function moveItemToBuy(id) {
+      const idx = itemsCache.findIndex(i => i.id === id);
+      if (idx === -1) return;
+      const originalItems = [...itemsCache];
+      itemsCache[idx].is_completed = false;
+      itemsCache[idx].is_staged = false;
+      renderItems(itemsCache);
+      fetchAndRenderSuggestions();
+      const { error } = await client
+        .from('shopping_items')
+        .update({ is_completed: false, is_staged: false })
+        .eq('id', id);
+      if (error) {
+        itemsCache = originalItems;
+        renderItems(itemsCache);
+        fetchAndRenderSuggestions();
+        alert("Failed to move item to shopping list.");
+      } else {
+        showToast('Moved to shopping list', 'success');
       }
     }
 
