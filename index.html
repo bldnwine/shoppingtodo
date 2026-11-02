@@ -2,6 +2,7 @@
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' blob: data:; connect-src 'self' https://hpdokobntovytsgylpra.supabase.co wss://hpdokobntovytsgylpra.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5"/>
   <title>Team Shopping List</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1140,7 +1141,7 @@
             <polyline points="21 15 16 10 5 21"/>
           </svg>
         </button>
-        <input type="file" id="imageInput" accept="image/*" />
+        <input type="file" id="imageInput" accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/heic,image/heif" />
         <div class="input-wrap">
           <input type="text" id="itemInput" placeholder="What do we need?" autocomplete="off" autofocus />
           <div class="category-trigger">
@@ -1217,6 +1218,7 @@
     </div>
     <div class="settings-content">
       <button class="clear-pantry-btn" id="clearPantryBtn" onclick="clearPantry()">Clear Pantry Items</button>
+      <button class="clear-pantry-btn" id="signOutBtn">Sign out</button>
       <div class="setting-row">
         <span>Light Theme</span>
         <label class="toggle">
@@ -1298,6 +1300,13 @@
     const menuDelete = document.getElementById('menuDelete');
 
     const CIRC = 2 * Math.PI * 19;
+    const categories = new Set(['produce', 'dairy', 'protein', 'spices', 'baked', 'household', 'other']);
+    const imageTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif', 'image/heic', 'image/heif']);
+    const imageCache = new Map();
+    const pendingImages = new Map();
+    const localImages = new Set();
+    let authGeneration = 0;
+    let authenticated = false;
 
     let selectedImageFile = null;
     let subscription = null;
@@ -1351,6 +1360,8 @@
     }
 
     async function clearPantry() {
+      if (!authenticated) return;
+      const generation = authGeneration;
       if (!confirm("Clear all pantry items?")) return;
       const originalItems = [...itemsCache];
       const pantryItems = itemsCache.filter(item => item.is_completed);
@@ -1360,18 +1371,13 @@
 
       if (pantryItems.length === 0) return;
 
-      const imageUrls = pantryItems.filter(item => item.image_url).map(item => item.image_url);
-      if (imageUrls.length > 0) {
-        await Promise.all(imageUrls.map(async (imageUrl) => {
-          try {
-            const url = new URL(imageUrl);
-            const filePath = url.pathname.split('/public/item-images/')[1] || '';
-            if (filePath) await client.storage.from('item-images').remove([filePath]);
-          } catch (e) {}
-        }));
-      }
+      const imagePaths = pantryItems.map(item => imagePath(item.image_url)).filter(Boolean);
+      if (imagePaths.length) await client.storage.from('item-images').remove(imagePaths);
+      if (!authenticated || generation !== authGeneration) return;
+      releaseUnusedImages();
 
       const { error } = await client.from('shopping_items').delete().eq('is_completed', true);
+      if (!authenticated || generation !== authGeneration) return;
       if (error) {
         itemsCache = originalItems;
         renderItems(itemsCache);
@@ -1401,19 +1407,49 @@
       updateProgress();
     }
 
-    function sanitizeHTML(str) {
-      if (str === null || str === undefined) return '';
-      const div = document.createElement('div');
-      div.textContent = str;
-      return div.innerHTML;
+    function sanitizeHTML(value) {
+      return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
     }
 
-    function validateImageUrl(url) {
-      if (!url) return '';
-      try {
-        const parsed = new URL(url);
-        if (parsed.protocol === 'https:' || parsed.protocol === 'blob:') return url;
-      } catch (e) {}
+    function imagePath(value) {
+      if (typeof value !== 'string' || !value) return '';
+      let path = value;
+      if (value.includes('://') || value.startsWith('blob:')) {
+        try {
+          const url = new URL(value);
+          const prefix = '/storage/v1/object/public/item-images/';
+          if (url.origin !== SUPABASE_URL || !url.pathname.startsWith(prefix) || url.search || url.hash) return '';
+          path = decodeURIComponent(url.pathname.slice(prefix.length));
+        } catch (e) { return ''; }
+      }
+      if (!path || path.startsWith('/') || path.includes('\\') || path.includes(':') || path.includes('%') || path.includes('?') || path.includes('#') || path.split('/').some(part => !part || part === '.' || part === '..')) return '';
+      return path;
+    }
+
+    function releaseUnusedImages() {
+      const paths = new Set(itemsCache.map(item => imagePath(item.image_url)).filter(Boolean));
+      for (const [path, url] of imageCache) {
+        if (!paths.has(path)) { URL.revokeObjectURL(url); imageCache.delete(path); }
+      }
+    }
+
+    function imageSource(item) {
+      if (item.isOptimistic && item.hasLocalImage && localImages.has(item.image_url)) return item.image_url;
+      const path = imagePath(item.image_url);
+      if (!path || !authenticated) return '';
+      if (imageCache.has(path)) return imageCache.get(path);
+      if (!pendingImages.has(path)) {
+        const generation = authGeneration;
+        const request = client.storage.from('item-images').download(path).then(({ data, error }) => {
+          if (!error && data && authenticated && generation === authGeneration && itemsCache.some(i => imagePath(i.image_url) === path)) {
+            imageCache.set(path, URL.createObjectURL(data));
+            renderItems(itemsCache);
+          }
+        }).catch(() => {}).finally(() => {
+          if (pendingImages.get(path) === request) pendingImages.delete(path);
+        });
+        pendingImages.set(path, request);
+      }
       return '';
     }
 
@@ -1458,6 +1494,8 @@
     }
 
     async function toggleStaged(id) {
+      if (!authenticated) return;
+      const generation = authGeneration;
       const idx = itemsCache.findIndex(i => i.id === id);
       if (idx === -1) return;
       const next = !itemsCache[idx].is_staged;
@@ -1466,6 +1504,7 @@
       updateMoveButton();
       updateProgress();
       const { error } = await client.from('shopping_items').update({ is_staged: next }).eq('id', id);
+      if (!authenticated || generation !== authGeneration) return;
       if (error) {
         itemsCache[idx].is_staged = !next;
         renderItems(itemsCache);
@@ -1485,6 +1524,8 @@
     }
 
     async function moveStagedToPantry() {
+      if (!authenticated) return;
+      const generation = authGeneration;
       var staged = itemsCache.filter(i => !i.is_completed && i.is_staged);
       var count = staged.length;
       if (!confirm('Move ' + count + ' item' + (count !== 1 ? 's' : '') + ' to pantry?')) return;
@@ -1492,6 +1533,7 @@
       for (var i = 0; i < staged.length; i++) {
         var id = staged[i].id;
         await client.from('shopping_items').update({ is_completed: true, is_staged: false }).eq('id', id);
+        if (!authenticated || generation !== authGeneration) return;
         var idx = itemsCache.findIndex(function(item) { return item.id === id; });
         if (idx !== -1) { itemsCache[idx].is_completed = true; itemsCache[idx].is_staged = false; }
       }
@@ -1502,12 +1544,18 @@
 
     imageInput.addEventListener('change', (e) => {
       selectedImageFile = e.target.files[0] || null;
+      if (selectedImageFile && !imageTypes.has(selectedImageFile.type)) {
+        selectedImageFile = null;
+        e.target.value = '';
+        alert('Please choose a JPEG, PNG, WebP, GIF, AVIF, HEIC, or HEIF image.');
+      }
       const preview = document.getElementById('imagePreview');
       const previewImg = document.getElementById('previewImg');
       
       if (selectedImageFile) {
         const reader = new FileReader();
         reader.onload = (e) => {
+          if (!selectedImageFile || !authenticated) return;
           previewImg.src = e.target.result;
           preview.classList.add('visible');
         };
@@ -1518,18 +1566,60 @@
       }
     });
 
-    async function checkSession() {
-      const { data: { session } } = await client.auth.getSession();
-      if (session) {
-        loginForm.style.display = 'none';
-        mainContent.style.display = 'block';
-        await fetchItems();
-        setupRealtime();
-      } else {
-        loginForm.style.display = 'flex';
-        mainContent.style.display = 'none';
-      }
+    function clearPrivateState() {
+      authenticated = false;
+      authGeneration++;
+      clearTimeout(realtimeTimeout);
+      if (subscription) { const old = subscription; subscription = null; setTimeout(() => client.removeChannel(old), 0); }
+      imageCache.forEach(url => URL.revokeObjectURL(url));
+      imageCache.clear();
+      localImages.forEach(url => URL.revokeObjectURL(url));
+      localImages.clear();
+      pendingImages.clear();
+      itemsCache = [];
+      editingId = null;
+      selectedImageFile = null;
+      imageInput.value = '';
+      itemInput.value = '';
+      passwordInput.value = '';
+      document.getElementById('previewImg').removeAttribute('src');
+      document.getElementById('imagePreview').classList.remove('visible');
+      activeList.innerHTML = '';
+      pantryList.innerHTML = '';
+      document.getElementById('suggestionsBox').innerHTML = '';
+      document.querySelector('.suggestions-wrapper').classList.remove('expanded');
+      toastContainer.innerHTML = '';
+      closeModal();
+      closeItemMenu();
+      settingsPanel.classList.remove('open');
+      settingsOverlay.classList.remove('open');
+      loginForm.style.display = 'flex';
+      mainContent.style.display = 'none';
     }
+
+    function applySession(session) {
+      if (!session) { clearPrivateState(); return; }
+      if (authenticated) return;
+      authenticated = true;
+      authGeneration++;
+      loginForm.style.display = 'none';
+      mainContent.style.display = 'block';
+      fetchItems();
+      setupRealtime();
+    }
+
+    document.getElementById('signOutBtn').addEventListener('click', async () => {
+      const { error } = await client.auth.signOut({ scope: 'local' });
+      if (error) alert('Failed to sign out. Please try again.');
+    });
+
+    client.auth.onAuthStateChange((event, session) => {
+      if (!session) clearPrivateState();
+      else {
+        const generation = authGeneration;
+        setTimeout(() => { if (generation === authGeneration) applySession(session); }, 0);
+      }
+    });
 
     async function login() {
       const password = passwordInput.value.trim();
@@ -1547,25 +1637,26 @@
 
       passwordInput.value = '';
       loginError.textContent = '';
-      await checkSession();
+      applySession(data.session);
     }
 
     async function fetchItems() {
+      const generation = authGeneration;
       const { data, error } = await client
         .from('shopping_items')
         .select('*')
         .order('created_at', { ascending: true });
 
-      if (error) {
-        return;
-      }
+      if (error || !authenticated || generation !== authGeneration) return;
 
       itemsCache = data || [];
+      releaseUnusedImages();
       renderItems(itemsCache);
       fetchAndRenderSuggestions();
     }
 
     function handleRealtimeEvent(payload) {
+      if (!authenticated) return;
       const { eventType, new: newRecord, old: oldRecord } = payload;
 
       switch (eventType) {
@@ -1590,6 +1681,7 @@
           break;
       }
 
+      releaseUnusedImages();
       itemsCache.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
       clearTimeout(realtimeTimeout);
       realtimeTimeout = setTimeout(() => {
@@ -1602,83 +1694,60 @@
     }
 
     function renderImage(item) {
-      if (!item.image_url) return '';
-      
-      const isOptimistic = item.isOptimistic;
-      const skeletonClass = isOptimistic ? 'mini-img-skeleton' : '';
-      const imgClass = isOptimistic ? 'mini-img loading' : 'mini-img';
-      const onLoadHandler = isOptimistic ? 'onload="this.classList.remove(\'loading\'); this.previousElementSibling.style.display=\'none\'"' : '';
-      
-      const safeUrl = validateImageUrl(item.image_url);
-      return (
-        (isOptimistic ? '<div class="' + skeletonClass + '"></div>' : '') +
-        '<img class="' + imgClass + '" src="' + sanitizeHTML(safeUrl) + '" alt="' + sanitizeHTML(item.item) + '" onclick="showImage(\'' + sanitizeHTML(safeUrl) + '\')" ' + onLoadHandler + '>'
-      );
+      const url = imageSource(item);
+      if (!url) return '';
+      return '<img class="mini-img" src="' + sanitizeHTML(url) + '" alt="' + sanitizeHTML(item.item) + '">';
     }
 
     function renderItem(item, isCompleted) {
       const optimisticClass = item.isOptimistic ? 'optimistic' : '';
-      const isStaged = !isCompleted && item.is_staged;
-      const stagedClass = isStaged ? 'staged' : '';
-
-      let clickAction;
-      if (item.isOptimistic) {
-        clickAction = '';
-      } else if (!isCompleted) {
-        clickAction = 'onclick="toggleStaged(\'' + sanitizeHTML(item.id) + '\')"';
-      } else {
-        clickAction = 'onclick="toggleItem(\'' + sanitizeHTML(item.id) + '\', ' + (!isCompleted) + ')"';
-      }
-
-      const safeUrl = validateImageUrl(item.image_url);
+      const stagedClass = !isCompleted && item.is_staged ? 'staged' : '';
       const isEditing = editingId === item.id && !item.isOptimistic;
-      const menuAction = item.isOptimistic ? '' : 'onclick="openItemMenu(\'' + sanitizeHTML(item.id) + '\', this, \'' + (safeUrl ? sanitizeHTML(safeUrl) : '') + '\')"';
       const ariaLabel = item.isOptimistic ? 'Adding item...' : 'Item options';
-
       let content;
       if (isEditing) {
         const cat = getCategory(item);
-        const catOptions = ['produce', 'dairy', 'protein', 'spices', 'baked', 'household', 'other'].map(c =>
+        const catOptions = [...categories].map(c =>
           '<option value="' + c + '"' + (c === cat ? ' selected' : '') + '>' + c.charAt(0).toUpperCase() + c.slice(1) + '</option>'
         ).join('');
-        content =
-          '<div class="task-container">' +
-            renderImage(item) +
-            '<div class="edit-form">' +
-              '<div class="input-wrap">' +
-                '<input class="edit-input" type="text" value="' + sanitizeHTML(item.item) + '" onkeydown="editKeyHandler(event, \'' + sanitizeHTML(item.id) + '\')">' +
-                '<div class="category-trigger">' +
-                  '<span class="category-dot" style="background:var(--cat-' + cat + ')"></span>' +
-                  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>' +
-                  '<select class="edit-cat-select" aria-label="Category">' + catOptions + '</select>' +
-                '</div>' +
-              '</div>' +
-            '</div>' +
-          '</div>' +
-          '<button class="edit-save" onclick="saveEdit(\'' + sanitizeHTML(item.id) + '\')" aria-label="Save">' +
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
-          '</button>';
+        content = '<div class="task-container">' + renderImage(item) +
+          '<div class="edit-form"><div class="input-wrap"><input class="edit-input" type="text" value="' + sanitizeHTML(item.item) + '">' +
+          '<div class="category-trigger"><span class="category-dot" style="background:var(--cat-' + cat + ')"></span>' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>' +
+          '<select class="edit-cat-select" aria-label="Category">' + catOptions + '</select></div></div></div></div>' +
+          '<button class="edit-save" aria-label="Save"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button>';
       } else {
-        content =
-          '<div class="task-container">' +
-            renderImage(item) +
-            '<span class="task-text" ' + clickAction + '>' + sanitizeHTML(item.item) + '</span>' +
-          '</div>' +
-          '<button class="menu-btn" ' + menuAction + ' aria-label="' + ariaLabel + '" ' + (item.isOptimistic ? 'disabled' : '') + '>' +
-            '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>' +
-          '</button>';
+        content = '<div class="task-container">' + renderImage(item) + '<span class="task-text">' + sanitizeHTML(item.item) + '</span></div>' +
+          '<button class="menu-btn" aria-label="' + ariaLabel + '" ' + (item.isOptimistic ? 'disabled' : '') + '><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></button>';
       }
-
-      return (
-        '<div class="todo-item cat-' + getCategory(item) + ' ' + (isCompleted ? 'completed' : '') + ' ' + stagedClass + ' ' + optimisticClass + '" data-id="' + sanitizeHTML(item.id) + '" data-image-url="' + (safeUrl ? sanitizeHTML(safeUrl) : '') + '">' +
-          content +
-        '</div>'
-      );
+      return '<div class="todo-item cat-' + getCategory(item) + ' ' + (isCompleted ? 'completed' : '') + ' ' + stagedClass + ' ' + optimisticClass + '" data-id="' + sanitizeHTML(item.id) + '">' + content + '</div>';
     }
 
     function getCategory(item) {
-      return item.category || 'other';
+      return categories.has(item.category) ? item.category : 'other';
     }
+
+    [activeList, pantryList].forEach(list => {
+      list.addEventListener('click', e => {
+        const row = e.target.closest('.todo-item');
+        if (!row) return;
+        const item = itemsCache.find(i => i.id === row.dataset.id);
+        if (!item) return;
+        if (e.target.closest('.mini-img')) showImage(e.target.closest('.mini-img').src);
+        else if (!item.isOptimistic && e.target.closest('.edit-save')) saveEdit(item.id);
+        else if (!item.isOptimistic && e.target.closest('.menu-btn')) openItemMenu(item.id, e.target.closest('.menu-btn'), item.image_url);
+        else if (!item.isOptimistic && e.target.closest('.task-text')) {
+          if (item.is_completed) toggleItem(item.id, false);
+          else toggleStaged(item.id);
+        }
+      });
+      list.addEventListener('keydown', e => {
+        if (e.target.classList.contains('edit-input')) {
+          const row = e.target.closest('.todo-item');
+          if (row) editKeyHandler(e, row.dataset.id);
+        }
+      });
+    });
 
     function sortByActiveCategory(list) {
       if (!activeCategory) return list;
@@ -1699,6 +1768,7 @@
     }
 
     function renderItems(items) {
+      if (!authenticated) return;
       closeItemMenu();
       const active = sortActiveItems(items.filter(i => !i.is_completed));
       const completed = sortByActiveCategory(items.filter(i => i.is_completed));
@@ -1741,9 +1811,10 @@
     }
 
     async function fetchAndRenderSuggestions() {
+      const generation = authGeneration;
       const suggestionsBox = document.getElementById('suggestionsBox');
       const suggestionsWrapper = document.querySelector('.suggestions-wrapper');
-      if (activeTab !== 'buy') {
+      if (!authenticated || activeTab !== 'buy') {
         suggestionsBox.innerHTML = '';
         suggestionsWrapper.classList.remove('expanded');
         return;
@@ -1758,6 +1829,7 @@
         .order('add_count', { ascending: false })
         .limit(10);
 
+      if (!authenticated || generation !== authGeneration || activeTab !== 'buy') return;
       if (error || !data || data.length === 0) {
         suggestionsBox.innerHTML = '';
         suggestionsWrapper.classList.remove('expanded');
@@ -1806,7 +1878,9 @@
     }
 
     async function addItem() {
-      if (isAdding) return;
+      if (isAdding || !authenticated) return;
+      const generation = authGeneration;
+      if (selectedImageFile && !imageTypes.has(selectedImageFile.type)) { alert('Unsupported image type.'); return; }
       
       const text = itemInput.value.trim();
       if (!text) {
@@ -1844,6 +1918,7 @@
       const previewImg = document.getElementById('previewImg');
       const tempImageFile = selectedImageFile;
       const tempImageUrl = tempImageFile ? URL.createObjectURL(tempImageFile) : null;
+      if (tempImageUrl) localImages.add(tempImageUrl);
       
       addButton.disabled = true;
       addButton.innerHTML = tempImageFile
@@ -1879,13 +1954,14 @@
 
       try {
         if (tempImageFile) {
-          const ext = tempImageFile.name.split('.').pop() || 'jpg';
+          const ext = ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/avif': 'avif', 'image/heic': 'heic', 'image/heif': 'heif' })[tempImageFile.type];
           const fileName = crypto.randomUUID() + '.' + ext;
 
           const { error: uploadError } = await client.storage
             .from('item-images')
             .upload(fileName, tempImageFile);
 
+          if (!authenticated || generation !== authGeneration) return;
           if (uploadError) {
             itemsCache = itemsCache.filter(item => item.id !== tempId);
             renderItems(itemsCache);
@@ -1894,11 +1970,7 @@
             return;
           }
 
-          const { data: urlData } = client.storage
-            .from('item-images')
-            .getPublicUrl(fileName);
-
-          imageUrl = urlData.publicUrl;
+          imageUrl = fileName;
         }
 
         const { data, error } = await client
@@ -1907,6 +1979,7 @@
           .select()
           .single();
 
+        if (!authenticated || generation !== authGeneration) return;
         if (error) {
           itemsCache = itemsCache.filter(item => item.id !== tempId);
           renderItems(itemsCache);
@@ -1922,6 +1995,7 @@
           fetchAndRenderSuggestions();
         }
       } catch (err) {
+        if (!authenticated || generation !== authGeneration) return;
         itemsCache = itemsCache.filter(item => item.id !== tempId);
         renderItems(itemsCache);
         fetchAndRenderSuggestions();
@@ -1933,11 +2007,14 @@
         loadingIndicator.classList.add('hidden');
         if (tempImageUrl) {
           URL.revokeObjectURL(tempImageUrl);
+          localImages.delete(tempImageUrl);
         }
       }
     }
 
     async function toggleItem(id, shouldComplete) {
+      if (!authenticated) return;
+      const generation = authGeneration;
       if (!shouldComplete) {
         if (!confirm('Move this item back to your shopping list?')) return;
         await moveItemToBuy(id);
@@ -1954,6 +2031,7 @@
         .from('shopping_items')
         .update({ is_completed: shouldComplete })
         .eq('id', id);
+      if (!authenticated || generation !== authGeneration) return;
 
       if (error) {
         if (itemIndex !== -1) {
@@ -1964,6 +2042,8 @@
     }
 
     async function deleteItem(id, imageUrl) {
+      if (!authenticated) return;
+      const generation = authGeneration;
       if (!confirm("Delete this item?")) return;
 
       const originalItems = [...itemsCache];
@@ -1979,32 +2059,16 @@
         fetchAndRenderSuggestions();
       }
 
-      let imageDeleted = false;
-
-      if (imageUrl) {
-        try {
-          const url = new URL(imageUrl);
-          const pathParts = url.pathname.split('/public/item-images/');
-          const filePath = pathParts[1] || '';
-
-          if (filePath) {
-            const { error: storageErr } = await client.storage
-              .from('item-images')
-              .remove([filePath]);
-
-            if (storageErr) {
-            } else {
-              imageDeleted = true;
-            }
-          }
-        } catch (e) {
-        }
-      }
+      const filePath = imagePath(imageUrl);
+      if (filePath) await client.storage.from('item-images').remove([filePath]);
+      if (!authenticated || generation !== authGeneration) return;
+      releaseUnusedImages();
 
       const { error: deleteErr } = await client
         .from('shopping_items')
         .delete()
         .eq('id', id);
+      if (!authenticated || generation !== authGeneration) return;
 
       if (deleteErr) {
         itemsCache = originalItems;
@@ -2014,7 +2078,6 @@
         return;
       }
 
-      // ponytail: if imageUrl && !imageDeleted, storage may have orphaned images
     }
 
     function openItemMenu(id, btn, imageUrl) {
@@ -2060,6 +2123,8 @@
     });
 
     async function moveItemToPantry(id) {
+      if (!authenticated) return;
+      const generation = authGeneration;
       const idx = itemsCache.findIndex(i => i.id === id);
       if (idx === -1) return;
       const originalItems = [...itemsCache];
@@ -2070,6 +2135,7 @@
         .from('shopping_items')
         .update({ is_completed: true, is_staged: false })
         .eq('id', id);
+      if (!authenticated || generation !== authGeneration) return;
       if (error) {
         itemsCache = originalItems;
         renderItems(itemsCache);
@@ -2078,6 +2144,8 @@
     }
 
     async function moveItemToBuy(id) {
+      if (!authenticated) return;
+      const generation = authGeneration;
       const idx = itemsCache.findIndex(i => i.id === id);
       if (idx === -1) return;
       const originalItems = [...itemsCache];
@@ -2089,6 +2157,7 @@
         .from('shopping_items')
         .update({ is_completed: false, is_staged: false })
         .eq('id', id);
+      if (!authenticated || generation !== authGeneration) return;
       if (error) {
         itemsCache = originalItems;
         renderItems(itemsCache);
@@ -2125,6 +2194,8 @@
     }
 
     async function saveEdit(id) {
+      if (!authenticated) return;
+      const generation = authGeneration;
       const el = document.querySelector('.todo-item[data-id="' + CSS.escape(id) + '"]');
       if (!el) return;
       const input = el.querySelector('.edit-input');
@@ -2136,13 +2207,15 @@
       if (idx === -1) return;
       const originalItems = [...itemsCache];
       itemsCache[idx].item = text;
-      itemsCache[idx].category = select.value;
+      const category = categories.has(select.value) ? select.value : 'other';
+      itemsCache[idx].category = category;
       editingId = null;
       renderItems(itemsCache);
       const { error } = await client
         .from('shopping_items')
-        .update({ item: text, category: select.value })
+        .update({ item: text, category })
         .eq('id', id);
+      if (!authenticated || generation !== authGeneration) return;
       if (error) {
         itemsCache = originalItems;
         editingId = null;
@@ -2166,7 +2239,7 @@
     document.addEventListener('change', (e) => {
       if (e.target.classList.contains('edit-cat-select')) {
         const dot = e.target.closest('.category-trigger').querySelector('.category-dot');
-        dot.style.background = 'var(--cat-' + e.target.value + ')';
+        dot.style.background = 'var(--cat-' + (categories.has(e.target.value) ? e.target.value : 'other') + ')';
       }
     });
 
@@ -2199,7 +2272,6 @@
 
     loadSettings();
     applySettings();
-    checkSession();
 
     passwordInput.addEventListener('keypress', e => {
       if (e.key === 'Enter') login();
@@ -2218,7 +2290,7 @@
     });
 
     categorySelect.addEventListener('change', () => {
-      selectedCategory = categorySelect.value;
+      selectedCategory = categories.has(categorySelect.value) ? categorySelect.value : 'other';
       categoryDot.style.background = 'var(--cat-' + selectedCategory + ')';
     });
 

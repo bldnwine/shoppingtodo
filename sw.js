@@ -1,4 +1,4 @@
-const CACHE_NAME = 'shopping-list-v1';
+const CACHE_NAME = 'shopping-list-v2';
 const ASSETS = [
   './index.html',
   './manifest.json'
@@ -20,7 +20,7 @@ self.addEventListener('activate', (e) => {
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME) {
+          if (key.startsWith('shopping-list-') && key !== CACHE_NAME) {
             return caches.delete(key);
           }
         })
