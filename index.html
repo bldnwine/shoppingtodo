@@ -1363,29 +1363,35 @@
       if (!authenticated) return;
       const generation = authGeneration;
       if (!confirm("Clear all pantry items?")) return;
-      const originalItems = [...itemsCache];
-      const pantryItems = itemsCache.filter(item => item.is_completed);
-      itemsCache = itemsCache.filter(item => !item.is_completed);
+      const pantryItems = itemsCache.filter(item => item.is_completed && !item.isOptimistic);
+      if (pantryItems.length === 0) return;
+      const ids = pantryItems.map(item => item.id);
+      itemsCache = itemsCache.filter(item => !ids.includes(item.id));
       renderItems(itemsCache);
       fetchAndRenderSuggestions();
 
-      if (pantryItems.length === 0) return;
-
-      const imagePaths = pantryItems.map(item => imagePath(item.image_url)).filter(Boolean);
-      if (imagePaths.length) await client.storage.from('item-images').remove(imagePaths);
+      let deleted = [];
+      try {
+        const { data, error } = await client.from('shopping_items').delete().in('id', ids).eq('is_completed', true).select('id');
+        if (!error && Array.isArray(data)) deleted = data;
+      } catch (e) {}
       if (!authenticated || generation !== authGeneration) return;
-      releaseUnusedImages();
-
-      const { error } = await client.from('shopping_items').delete().eq('is_completed', true);
-      if (!authenticated || generation !== authGeneration) return;
-      if (error) {
-        itemsCache = originalItems;
-        renderItems(itemsCache);
-        fetchAndRenderSuggestions();
-        alert("Failed to clear pantry items.");
-      } else {
-        showToast('Pantry cleared', 'success');
+      const deletedIds = new Set(deleted.map(item => item.id).filter(id => ids.includes(id)));
+      const missing = pantryItems.filter(item => !deletedIds.has(item.id));
+      itemsCache = itemsCache.filter(item => !deletedIds.has(item.id));
+      for (const item of missing) {
+        if (!itemsCache.some(current => current.id === item.id)) itemsCache.push(item);
       }
+      itemsCache.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      releaseUnusedImages();
+      renderItems(itemsCache);
+      fetchAndRenderSuggestions();
+      if (missing.length) alert('Some pantry items could not be cleared.');
+      else showToast('Pantry cleared', 'success');
+
+      const remainingPaths = new Set(itemsCache.map(item => imagePath(item.image_url)).filter(Boolean));
+      const imagePaths = [...new Set(pantryItems.filter(item => deletedIds.has(item.id)).map(item => imagePath(item.image_url)).filter(path => path && !remainingPaths.has(path)))];
+      if (imagePaths.length && authenticated && generation === authGeneration) await client.storage.from('item-images').remove(imagePaths);
     }
 
     function switchTab(tab) {
@@ -1442,8 +1448,14 @@
         const generation = authGeneration;
         const request = client.storage.from('item-images').download(path).then(({ data, error }) => {
           if (!error && data && authenticated && generation === authGeneration && itemsCache.some(i => imagePath(i.image_url) === path)) {
-            imageCache.set(path, URL.createObjectURL(data));
-            renderItems(itemsCache);
+            const url = URL.createObjectURL(data);
+            imageCache.set(path, url);
+            document.querySelectorAll('.mini-img[data-image-path]').forEach(img => {
+              if (img.dataset.imagePath === path) {
+                img.src = url;
+                img.hidden = false;
+              }
+            });
           }
         }).catch(() => {}).finally(() => {
           if (pendingImages.get(path) === request) pendingImages.delete(path);
@@ -1695,8 +1707,10 @@
 
     function renderImage(item) {
       const url = imageSource(item);
-      if (!url) return '';
-      return '<img class="mini-img" src="' + sanitizeHTML(url) + '" alt="' + sanitizeHTML(item.item) + '">';
+      if (url) return '<img class="mini-img" src="' + sanitizeHTML(url) + '" alt="' + sanitizeHTML(item.item) + '">';
+      const path = imagePath(item.image_url);
+      if (!path) return '';
+      return '<img class="mini-img" data-image-path="' + sanitizeHTML(path) + '" alt="' + sanitizeHTML(item.item) + '" hidden>';
     }
 
     function renderItem(item, isCompleted) {
@@ -2046,7 +2060,8 @@
       const generation = authGeneration;
       if (!confirm("Delete this item?")) return;
 
-      const originalItems = [...itemsCache];
+      const originalItem = itemsCache.find(item => item.id === id);
+      if (!originalItem) return;
       itemsCache = itemsCache.filter(item => item.id !== id);
       const el = document.querySelector('[data-id="' + CSS.escape(id) + '"]');
       if (el) {
@@ -2059,25 +2074,26 @@
         fetchAndRenderSuggestions();
       }
 
-      const filePath = imagePath(imageUrl);
-      if (filePath) await client.storage.from('item-images').remove([filePath]);
+      let deleted = [];
+      try {
+        const { data, error } = await client.from('shopping_items').delete().eq('id', id).select('id');
+        if (!error && Array.isArray(data)) deleted = data;
+      } catch (e) {}
       if (!authenticated || generation !== authGeneration) return;
-      releaseUnusedImages();
-
-      const { error: deleteErr } = await client
-        .from('shopping_items')
-        .delete()
-        .eq('id', id);
-      if (!authenticated || generation !== authGeneration) return;
-
-      if (deleteErr) {
-        itemsCache = originalItems;
+      if (deleted.length !== 1 || deleted[0].id !== id) {
+        if (!itemsCache.some(item => item.id === id)) itemsCache.push(originalItem);
+        itemsCache.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
         renderItems(itemsCache);
         fetchAndRenderSuggestions();
         alert("Failed to delete item. Please try again.");
         return;
       }
-
+      itemsCache = itemsCache.filter(item => item.id !== id);
+      releaseUnusedImages();
+      const filePath = imagePath(imageUrl);
+      if (filePath && !itemsCache.some(item => imagePath(item.image_url) === filePath)) {
+        await client.storage.from('item-images').remove([filePath]);
+      }
     }
 
     function openItemMenu(id, btn, imageUrl) {
