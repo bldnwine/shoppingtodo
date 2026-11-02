@@ -1603,6 +1603,8 @@
       toastContainer.innerHTML = '';
       closeModal();
       closeItemMenu();
+      delete itemMenu.dataset.id;
+      delete itemMenu.dataset.imageUrl;
       settingsPanel.classList.remove('open');
       settingsOverlay.classList.remove('open');
       loginForm.style.display = 'flex';
@@ -2063,7 +2065,7 @@
       const originalItem = itemsCache.find(item => item.id === id);
       if (!originalItem) return;
       itemsCache = itemsCache.filter(item => item.id !== id);
-      const el = document.querySelector('[data-id="' + CSS.escape(id) + '"]');
+      const el = document.querySelector('.todo-item[data-id="' + CSS.escape(id) + '"]');
       if (el) {
         el.remove();
         updateMoveButton();
